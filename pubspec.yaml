@@ -1,5 +1,5 @@
 name: momentum
-description: "A new Flutter project."
+description: "Momentum — an Android-first personal productivity app for tasks, goals and progress."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -34,6 +34,21 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+
+  # State management.
+  #
+  # Pinned to 3.3.2 because 3.4.x requires Dart 3.12 (Flutter 3.44).
+  flutter_riverpod: ^3.3.2
+
+  # Declarative navigation.
+  #
+  # Pinned to 17.x because 18.x requires Dart 3.12 (Flutter 3.44).
+  go_router: ^17.2.3
+
+  # Local persistence for user preferences such as the theme selection.
+  #
+  # Pinned to 2.5.5 because 2.5.6 requires Dart 3.11 (Flutter 3.41).
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
