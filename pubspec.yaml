@@ -50,6 +50,23 @@ dependencies:
   # Pinned to 2.5.5 because 2.5.6 requires Dart 3.11 (Flutter 3.41).
   shared_preferences: ^2.5.5
 
+  # Local database (Drift + SQLite).
+  #
+  # Drift 2.31.0 is the latest release compatible with the FVM-pinned
+  # Flutter 3.38.9 / Dart 3.10.8 toolchain.
+  drift: ^2.31.0
+  # Provides the native SQLite connection with the Android-specific
+  # workaround for opening sqlite3 on older Android versions.
+  drift_flutter: ^0.2.8
+  # Bundles the native SQLite library for Android/iOS.
+  sqlite3_flutter_libs: ^0.5.42
+  # Resolves the per-platform application documents directory.
+  path_provider: ^2.1.5
+  # Path manipulation helpers used to build the database file location.
+  path: ^1.9.1
+  # Locally generated stable identifiers for entities.
+  uuid: ^4.5.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -60,6 +77,13 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+
+  # Code generation for Drift (database) and other packages.
+  #
+  # build_runner 2.15.1 is the highest compatible with Dart 3.9.2.
+  build_runner: ^2.15.1
+  # Drift code generator (matches the drift runtime version).
+  drift_dev: ^2.31.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
