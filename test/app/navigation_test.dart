@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:momentum/app/router.dart';
 import 'package:momentum/app/routes.dart';
+import 'package:momentum/features/tasks/data/task_providers.dart';
+import 'package:momentum/features/tasks/domain/task.dart';
 
 import '../helpers/test_app.dart';
 
@@ -12,7 +15,13 @@ void main() {
   Future<void> pumpApp(WidgetTester tester, {GoRouter? router}) async {
     final preferences = await createTestPreferences(<String, Object>{});
     await tester.pumpWidget(
-      buildTestApp(preferences: preferences, router: router),
+      buildTestApp(
+        preferences: preferences,
+        router: router,
+        overrides: [
+          taskListProvider.overrideWith((Ref ref) => Stream.value(<Task>[])),
+        ],
+      ),
     );
     await tester.pumpAndSettle();
   }

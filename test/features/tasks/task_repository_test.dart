@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:momentum/core/database/app_database.dart' hide Task;
-import 'package:momentum/core/database/tables/tasks.dart';
 import 'package:momentum/features/tasks/data/drift_task_repository.dart';
 import 'package:momentum/features/tasks/domain/task.dart';
 
@@ -111,8 +110,9 @@ void main() {
       final Task first = await repository.create(
         const TaskDraft(title: 'First'),
       );
-      // Ensure a distinct creation time.
-      await Future<void>.delayed(const Duration(milliseconds: 5));
+      // Ensure a distinct creation time at second-level precision (Drift
+      // stores DateTime as Unix seconds).
+      await Future<void>.delayed(const Duration(seconds: 1, milliseconds: 100));
       final Task second = await repository.create(
         const TaskDraft(title: 'Second'),
       );

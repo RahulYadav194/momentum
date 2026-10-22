@@ -1,6 +1,9 @@
 import 'package:momentum/core/database/tables/tasks.dart'
     show TaskPriority, TaskStatus;
 
+export 'package:momentum/core/database/tables/tasks.dart'
+    show TaskPriority, TaskStatus;
+
 /// A task in the user's personal task list.
 ///
 /// This is the domain model used throughout the application. It is deliberately

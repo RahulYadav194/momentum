@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:momentum/core/theme/theme_preferences.dart';
+import 'package:momentum/features/tasks/data/task_providers.dart';
+import 'package:momentum/features/tasks/domain/task.dart';
 
 import '../helpers/test_app.dart';
 
@@ -21,7 +26,7 @@ void main() {
       WidgetTester tester,
     ) async {
       final preferences = await createTestPreferences(<String, Object>{});
-      await tester.pumpWidget(buildTestApp(preferences: preferences));
+      await tester.pumpWidget(buildTestApp(preferences: preferences, overrides: [taskListProvider.overrideWith((Ref ref) => Stream.value(<Task>[]))]));
       await tester.pumpAndSettle();
 
       expect(appThemeMode(tester), ThemeMode.system);
@@ -33,7 +38,7 @@ void main() {
       final preferences = await createTestPreferences(<String, Object>{
         kThemeModeKey: 'dark',
       });
-      await tester.pumpWidget(buildTestApp(preferences: preferences));
+      await tester.pumpWidget(buildTestApp(preferences: preferences, overrides: [taskListProvider.overrideWith((Ref ref) => Stream.value(<Task>[]))]));
       await tester.pumpAndSettle();
 
       expect(appThemeMode(tester), ThemeMode.dark);
@@ -46,7 +51,7 @@ void main() {
       final preferences = await createTestPreferences(<String, Object>{
         kThemeModeKey: 'light',
       });
-      await tester.pumpWidget(buildTestApp(preferences: preferences));
+      await tester.pumpWidget(buildTestApp(preferences: preferences, overrides: [taskListProvider.overrideWith((Ref ref) => Stream.value(<Task>[]))]));
       await tester.pumpAndSettle();
 
       expect(appThemeMode(tester), ThemeMode.light);
@@ -60,7 +65,7 @@ void main() {
       addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
 
       final preferences = await createTestPreferences(<String, Object>{});
-      await tester.pumpWidget(buildTestApp(preferences: preferences));
+      await tester.pumpWidget(buildTestApp(preferences: preferences, overrides: [taskListProvider.overrideWith((Ref ref) => Stream.value(<Task>[]))]));
       await tester.pumpAndSettle();
 
       expect(appThemeMode(tester), ThemeMode.system);
@@ -71,7 +76,7 @@ void main() {
       WidgetTester tester,
     ) async {
       final preferences = await createTestPreferences(<String, Object>{});
-      await tester.pumpWidget(buildTestApp(preferences: preferences));
+      await tester.pumpWidget(buildTestApp(preferences: preferences, overrides: [taskListProvider.overrideWith((Ref ref) => Stream.value(<Task>[]))]));
       await tester.pumpAndSettle();
 
       expect(appThemeMode(tester), ThemeMode.system);
@@ -93,7 +98,7 @@ void main() {
         addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
 
         final preferences = await createTestPreferences(<String, Object>{});
-        await tester.pumpWidget(buildTestApp(preferences: preferences));
+        await tester.pumpWidget(buildTestApp(preferences: preferences, overrides: [taskListProvider.overrideWith((Ref ref) => Stream.value(<Task>[]))]));
         await tester.pumpAndSettle();
 
         await tester.tap(find.byTooltip('Settings'));
@@ -116,7 +121,7 @@ void main() {
       final preferences = await createTestPreferences(<String, Object>{
         kThemeModeKey: 'dark',
       });
-      await tester.pumpWidget(buildTestApp(preferences: preferences));
+      await tester.pumpWidget(buildTestApp(preferences: preferences, overrides: [taskListProvider.overrideWith((Ref ref) => Stream.value(<Task>[]))]));
       await tester.pumpAndSettle();
 
       expect(renderedBrightness(tester), Brightness.dark);

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:momentum/features/tasks/data/task_providers.dart';
+import 'package:momentum/features/tasks/domain/task.dart';
 
 import 'helpers/test_app.dart';
 
@@ -11,7 +14,14 @@ void main() {
   ) async {
     final preferences = await createTestPreferences(<String, Object>{});
 
-    await tester.pumpWidget(buildTestApp(preferences: preferences));
+    await tester.pumpWidget(
+      buildTestApp(
+        preferences: preferences,
+        overrides: [
+          taskListProvider.overrideWith((Ref ref) => Stream.value(<Task>[])),
+        ],
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(MaterialApp), findsOneWidget);

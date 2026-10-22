@@ -21,14 +21,19 @@ Future<SharedPreferences> createTestPreferences(
 ///
 /// A fresh [router] is created for every test, because a [GoRouter] keeps
 /// navigation state that must not leak between tests.
+///
+/// Extra [overrides] are applied on top of the defaults, which lets widget
+/// tests substitute fake repositories or streams.
 Widget buildTestApp({
   required SharedPreferences preferences,
   GoRouter? router,
+  List<dynamic> overrides = const <dynamic>[],
 }) {
   return ProviderScope(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(preferences),
       routerProvider.overrideWithValue(router ?? createRouter()),
+      ...overrides,
     ],
     child: const MomentumApp(),
   );
