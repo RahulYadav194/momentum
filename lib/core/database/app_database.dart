@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'tables/task_history_events.dart';
 import 'tables/tasks.dart';
 
 part 'app_database.g.dart';
@@ -12,17 +13,18 @@ part 'app_database.g.dart';
 /// [driftDatabase], which applies the Android-specific workaround for opening
 /// sqlite3 on older Android versions. Tests can inject an in-memory
 /// [QueryExecutor] through the constructor.
-@DriftDatabase(tables: [Tasks])
+@DriftDatabase(tables: [Tasks, TaskHistoryEvents])
 class AppDatabase extends _$AppDatabase {
   /// Creates a database backed by [executor].
   ///
   /// When [executor] is omitted, a production connection is created through
   /// [driftDatabase]. Pass [NativeDatabase.memory] (from
   /// `package:drift/native.dart`) in tests for an isolated in-memory database.
-  AppDatabase([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'momentum'));
+  AppDatabase([QueryExecutor? executor])
+    : super(executor ?? driftDatabase(name: 'momentum'));
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -33,7 +35,19 @@ class AppDatabase extends _$AppDatabase {
     // Existing installations are upgraded here. Version 1 is the initial
     // schema, so there is nothing to migrate yet.
     onUpgrade: (Migrator m, int from, int to) async {
-      // Future schema changes are handled here, one version at a time.
+      if (from < 2) {
+        await m.addColumn(tasks, tasks.plannedDate);
+        await m.addColumn(tasks, tasks.deletedAt);
+        await m.createTable(taskHistoryEvents);
+      }
+      if (from < 3) {
+        await m.database.customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_task_history_events_task_id ON task_history_events(task_id);',
+        );
+        await m.database.customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_task_history_events_occurred_at ON task_history_events(occurred_at);',
+        );
+      }
     },
   );
 }
@@ -42,7 +56,9 @@ class AppDatabase extends _$AppDatabase {
 ///
 /// The database is created lazily and closed when the provider is disposed,
 /// so a single instance is shared across the app and never leaked.
-final Provider<AppDatabase> appDatabaseProvider = Provider<AppDatabase>((Ref ref) {
+final Provider<AppDatabase> appDatabaseProvider = Provider<AppDatabase>((
+  Ref ref,
+) {
   final AppDatabase database = AppDatabase();
   ref.onDispose(() => database.close());
   return database;

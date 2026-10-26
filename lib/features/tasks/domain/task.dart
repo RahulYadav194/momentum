@@ -17,6 +17,8 @@ class Task {
     required this.status,
     required this.priority,
     this.dueDate,
+    this.plannedDate,
+    this.deletedAt,
     required this.createdAt,
     required this.updatedAt,
     this.completedAt,
@@ -40,6 +42,12 @@ class Task {
   /// Optional local deadline.
   final DateTime? dueDate;
 
+  /// Optional planned work date.
+  final DateTime? plannedDate;
+
+  /// When the task was soft-deleted, if ever.
+  final DateTime? deletedAt;
+
   /// When the task was first created.
   final DateTime createdAt;
 
@@ -62,22 +70,26 @@ class Task {
           status == other.status &&
           priority == other.priority &&
           dueDate == other.dueDate &&
+          plannedDate == other.plannedDate &&
+          deletedAt == other.deletedAt &&
           createdAt == other.createdAt &&
           updatedAt == other.updatedAt &&
           completedAt == other.completedAt;
 
   @override
   int get hashCode => Object.hash(
-        id,
-        title,
-        description,
-        status,
-        priority,
-        dueDate,
-        createdAt,
-        updatedAt,
-        completedAt,
-      );
+    id,
+    title,
+    description,
+    status,
+    priority,
+    dueDate,
+    plannedDate,
+    deletedAt,
+    createdAt,
+    updatedAt,
+    completedAt,
+  );
 
   @override
   String toString() =>
@@ -94,6 +106,7 @@ class TaskDraft {
     this.description,
     this.priority = TaskPriority.medium,
     this.dueDate,
+    this.plannedDate,
   });
 
   /// The task title. Surrounding whitespace is trimmed by the repository.
@@ -107,6 +120,9 @@ class TaskDraft {
 
   /// Optional local deadline.
   final DateTime? dueDate;
+
+  /// Optional planned work date.
+  final DateTime? plannedDate;
 }
 
 /// Partial update for an existing task.
@@ -122,6 +138,8 @@ class TaskUpdate {
     this.priority,
     this.dueDate,
     this.clearDueDate = false,
+    this.plannedDate,
+    this.clearPlannedDate = false,
     this.status,
   });
 
@@ -142,6 +160,12 @@ class TaskUpdate {
 
   /// When true, clears the due date regardless of [dueDate].
   final bool clearDueDate;
+
+  /// New planned date.
+  final DateTime? plannedDate;
+
+  /// When true, clears the planned date regardless of [plannedDate].
+  final bool clearPlannedDate;
 
   /// New status.
   final TaskStatus? status;

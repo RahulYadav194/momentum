@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:momentum/features/tasks/domain/task.dart';
+import 'package:momentum/features/tasks/domain/task_history_event.dart';
 import 'package:momentum/features/tasks/domain/task_repository.dart';
 
 /// An in-memory [TaskRepository] for widget tests.
@@ -9,7 +10,9 @@ class FakeTaskRepository implements TaskRepository {
   final StreamController<List<Task>> _controller =
       StreamController<List<Task>>.broadcast();
 
-  void _emit() => _controller.add(List<Task>.unmodifiable(_tasks));
+  void _emit() => _controller.add(
+    List<Task>.unmodifiable(_tasks.where((t) => t.deletedAt == null).toList()),
+  );
 
   @override
   Future<Task> create(TaskDraft draft) async {
@@ -20,6 +23,7 @@ class FakeTaskRepository implements TaskRepository {
       status: TaskStatus.pending,
       priority: draft.priority,
       dueDate: draft.dueDate,
+      plannedDate: draft.plannedDate,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
@@ -37,7 +41,9 @@ class FakeTaskRepository implements TaskRepository {
   }
 
   @override
-  Future<List<Task>> getAll() async => List<Task>.unmodifiable(_tasks);
+  Future<List<Task>> getAll() async => List<Task>.unmodifiable(
+    _tasks.where((t) => t.deletedAt == null).toList(),
+  );
 
   @override
   Stream<List<Task>> watchAll() {
@@ -45,8 +51,8 @@ class FakeTaskRepository implements TaskRepository {
         StreamController<List<Task>>();
     // Emit the current state immediately, like Drift's watch().
     controller.add(List<Task>.unmodifiable(_tasks));
-    final StreamSubscription<List<Task>> subscription =
-        _controller.stream.listen(controller.add);
+    final StreamSubscription<List<Task>> subscription = _controller.stream
+        .listen(controller.add);
     controller.onCancel = () => subscription.cancel();
     return controller.stream;
   }
@@ -62,10 +68,10 @@ class FakeTaskRepository implements TaskRepository {
     }
 
     controller.add(findTask(_tasks));
-    final StreamSubscription<List<Task>> subscription =
-        _controller.stream.listen((List<Task> tasks) {
-      controller.add(findTask(tasks));
-    });
+    final StreamSubscription<List<Task>> subscription = _controller.stream
+        .listen((List<Task> tasks) {
+          controller.add(findTask(tasks));
+        });
     controller.onCancel = () => subscription.cancel();
     return controller.stream;
   }
@@ -76,8 +82,9 @@ class FakeTaskRepository implements TaskRepository {
     if (index == -1) throw StateError('Task not found: $id');
 
     final Task existing = _tasks[index];
-    final String newTitle =
-        update.title == null ? existing.title : update.title!.trim();
+    final String newTitle = update.title == null
+        ? existing.title
+        : update.title!.trim();
     if (newTitle.isEmpty) throw ArgumentError('Task title must not be empty.');
 
     final Task updated = Task(
@@ -88,7 +95,9 @@ class FakeTaskRepository implements TaskRepository {
           : (update.description ?? existing.description),
       status: update.status ?? existing.status,
       priority: update.priority ?? existing.priority,
-      dueDate: update.clearDueDate ? null : (update.dueDate ?? existing.dueDate),
+      dueDate: update.clearDueDate
+          ? null
+          : (update.dueDate ?? existing.dueDate),
       createdAt: existing.createdAt,
       updatedAt: DateTime.now(),
       completedAt: update.status == TaskStatus.completed
@@ -102,11 +111,25 @@ class FakeTaskRepository implements TaskRepository {
 
   @override
   Future<bool> delete(String id) async {
-    final int before = _tasks.length;
-    _tasks.removeWhere((Task t) => t.id == id);
-    final bool deleted = _tasks.length < before;
-    if (deleted) _emit();
-    return deleted;
+    final int index = _tasks.indexWhere(
+      (Task t) => t.id == id && t.deletedAt == null,
+    );
+    if (index == -1) return false;
+    _tasks[index] = Task(
+      id: _tasks[index].id,
+      title: _tasks[index].title,
+      description: _tasks[index].description,
+      status: _tasks[index].status,
+      priority: _tasks[index].priority,
+      dueDate: _tasks[index].dueDate,
+      plannedDate: _tasks[index].plannedDate,
+      deletedAt: DateTime.now(),
+      createdAt: _tasks[index].createdAt,
+      updatedAt: DateTime.now(),
+      completedAt: _tasks[index].completedAt,
+    );
+    _emit();
+    return true;
   }
 
   @override
@@ -154,6 +177,13 @@ class FakeTaskRepository implements TaskRepository {
     _emit();
     return reopened;
   }
+
+  @override
+  Future<List<TaskHistoryEvent>> getHistoryForTask(String id) async =>
+      <TaskHistoryEvent>[];
+
+  @override
+  Future<List<TaskHistoryEvent>> getAllHistory() async => <TaskHistoryEvent>[];
 
   void dispose() => _controller.close();
 }

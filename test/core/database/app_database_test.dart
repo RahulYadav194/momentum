@@ -30,8 +30,8 @@ void main() {
       expect(tasks, isEmpty);
     });
 
-    test('has schema version 1', () {
-      expect(database.schemaVersion, 1);
+    test('has schema version 3', () {
+      expect(database.schemaVersion, 3);
     });
   });
 
@@ -40,7 +40,9 @@ void main() {
       final String id = const Uuid().v4();
       final DateTime now = DateTime.now();
 
-      await database.into(database.tasks).insert(
+      await database
+          .into(database.tasks)
+          .insert(
             TasksCompanion.insert(
               id: id,
               title: 'Buy groceries',
@@ -66,7 +68,9 @@ void main() {
       final String id = const Uuid().v4();
       final DateTime now = DateTime.now();
 
-      await database.into(database.tasks).insert(
+      await database
+          .into(database.tasks)
+          .insert(
             TasksCompanion.insert(
               id: id,
               title: 'Read a book',
@@ -75,9 +79,9 @@ void main() {
             ),
           );
 
-      final Task? task = await (database.select(database.tasks)
-            ..where((Tasks t) => t.id.equals(id)))
-          .getSingleOrNull();
+      final Task? task = await (database.select(
+        database.tasks,
+      )..where((Tasks t) => t.id.equals(id))).getSingleOrNull();
 
       expect(task, isNotNull);
       expect(task!.title, 'Read a book');
@@ -89,7 +93,9 @@ void main() {
       final String id = const Uuid().v4();
       final DateTime now = DateTime.now();
 
-      await database.into(database.tasks).insert(
+      await database
+          .into(database.tasks)
+          .insert(
             TasksCompanion.insert(
               id: id,
               title: 'Original title',
@@ -99,25 +105,28 @@ void main() {
           );
 
       final DateTime completedAt = DateTime.now();
-      await (database.update(database.tasks)
-            ..where((Tasks t) => t.id.equals(id)))
-          .write(
-            TasksCompanion(
-              title: const Value('Updated title'),
-              status: const Value(TaskStatus.completed),
-              completedAt: Value(completedAt),
-              updatedAt: Value(completedAt),
-            ),
-          );
+      await (database.update(
+        database.tasks,
+      )..where((Tasks t) => t.id.equals(id))).write(
+        TasksCompanion(
+          title: const Value('Updated title'),
+          status: const Value(TaskStatus.completed),
+          completedAt: Value(completedAt),
+          updatedAt: Value(completedAt),
+        ),
+      );
 
-      final Task task = await (database.select(database.tasks)
-            ..where((Tasks t) => t.id.equals(id)))
-          .getSingle();
+      final Task task = await (database.select(
+        database.tasks,
+      )..where((Tasks t) => t.id.equals(id))).getSingle();
 
       expect(task.title, 'Updated title');
       expect(task.status, TaskStatus.completed);
       expect(task.completedAt, isNotNull);
-      expect(task.completedAt!.difference(completedAt).inSeconds.abs(), lessThanOrEqualTo(1));
+      expect(
+        task.completedAt!.difference(completedAt).inSeconds.abs(),
+        lessThanOrEqualTo(1),
+      );
     });
   });
 
@@ -126,7 +135,9 @@ void main() {
       final String id = const Uuid().v4();
       final DateTime now = DateTime.now();
 
-      await database.into(database.tasks).insert(
+      await database
+          .into(database.tasks)
+          .insert(
             TasksCompanion.insert(
               id: id,
               title: 'To be deleted',
@@ -137,17 +148,17 @@ void main() {
 
       expect(await database.select(database.tasks).get(), hasLength(1));
 
-      await (database.delete(database.tasks)
-            ..where((Tasks t) => t.id.equals(id)))
-          .go();
+      await (database.delete(
+        database.tasks,
+      )..where((Tasks t) => t.id.equals(id))).go();
 
       expect(await database.select(database.tasks).get(), isEmpty);
     });
 
     test('deleting a missing id does not throw', () async {
-      await (database.delete(database.tasks)
-            ..where((Tasks t) => t.id.equals('does-not-exist')))
-          .go();
+      await (database.delete(
+        database.tasks,
+      )..where((Tasks t) => t.id.equals('does-not-exist'))).go();
 
       expect(await database.select(database.tasks).get(), isEmpty);
     });
@@ -159,7 +170,9 @@ void main() {
       final DateTime now = DateTime.now();
       final DateTime dueDate = now.add(const Duration(days: 3));
 
-      await database.into(database.tasks).insert(
+      await database
+          .into(database.tasks)
+          .insert(
             TasksCompanion.insert(
               id: id,
               title: 'Plan milestone',
@@ -171,21 +184,26 @@ void main() {
             ),
           );
 
-      final Task task = await (database.select(database.tasks)
-            ..where((Tasks t) => t.id.equals(id)))
-          .getSingle();
+      final Task task = await (database.select(
+        database.tasks,
+      )..where((Tasks t) => t.id.equals(id))).getSingle();
 
       expect(task.description, 'Write the database layer');
       expect(task.priority, TaskPriority.high);
       expect(task.dueDate, isNotNull);
-      expect(task.dueDate!.difference(dueDate).inSeconds.abs(), lessThanOrEqualTo(1));
+      expect(
+        task.dueDate!.difference(dueDate).inSeconds.abs(),
+        lessThanOrEqualTo(1),
+      );
     });
 
     test('defaults status to pending and priority to medium', () async {
       final String id = const Uuid().v4();
       final DateTime now = DateTime.now();
 
-      await database.into(database.tasks).insert(
+      await database
+          .into(database.tasks)
+          .insert(
             TasksCompanion.insert(
               id: id,
               title: 'Defaults check',
@@ -194,9 +212,9 @@ void main() {
             ),
           );
 
-      final Task task = await (database.select(database.tasks)
-            ..where((Tasks t) => t.id.equals(id)))
-          .getSingle();
+      final Task task = await (database.select(
+        database.tasks,
+      )..where((Tasks t) => t.id.equals(id))).getSingle();
 
       expect(task.status, TaskStatus.pending);
       expect(task.priority, TaskPriority.medium);

@@ -10,11 +10,7 @@ enum TaskStatus {
 }
 
 /// The relative importance of a task.
-enum TaskPriority {
-  low,
-  medium,
-  high,
-}
+enum TaskPriority { low, medium, high }
 
 /// The `tasks` table.
 ///
@@ -43,6 +39,12 @@ class Tasks extends Table {
 
   /// Optional local deadline for the task.
   DateTimeColumn get dueDate => dateTime().nullable()();
+
+  /// Optional date on which the user intends to work on the task.
+  DateTimeColumn get plannedDate => dateTime().nullable()();
+
+  /// When the task was soft-deleted, if ever.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 
   /// When the task was first created.
   DateTimeColumn get createdAt => dateTime()();
