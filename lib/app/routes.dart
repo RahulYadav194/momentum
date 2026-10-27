@@ -14,6 +14,9 @@ abstract final class AppRoutes {
   /// The Progress tab.
   static const String progress = '/progress';
 
+  /// The Calendar screen.
+  static const String calendar = '/calendar';
+
   /// The Settings screen, pushed on top of the tabbed shell.
   static const String settings = '/settings';
 }
