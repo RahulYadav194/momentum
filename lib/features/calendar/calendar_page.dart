@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../tasks/data/task_providers.dart';
+import '../tasks/domain/task.dart';
 import '../tasks/domain/task_history_event.dart';
 
 final calendarHistoryProvider = FutureProvider<List<TaskHistoryEvent>>((
@@ -10,6 +11,13 @@ final calendarHistoryProvider = FutureProvider<List<TaskHistoryEvent>>((
   final repo = ref.watch(taskRepositoryProvider);
   return repo.getAllHistory();
 });
+
+String _titleFor(String id, List<Task> tasks) {
+  for (final Task t in tasks) {
+    if (t.id == id) return t.title;
+  }
+  return 'Deleted task';
+}
 
 class CalendarPage extends ConsumerStatefulWidget {
   const CalendarPage({super.key});
@@ -29,35 +37,60 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   @override
   Widget build(BuildContext context) {
     final historyAsync = ref.watch(calendarHistoryProvider);
+    final tasksAsync = ref.watch(taskListProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Calendar')),
       body: historyAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (Object e, StackTrace _) => Center(child: Text('Error: e')),
+        error: (Object e, StackTrace _) => Center(child: Text('Error: $e')),
         data: (List<TaskHistoryEvent> events) {
-          return Column(
-            children: <Widget>[
-              _MonthHeader(
-                month: _month,
-                onPrev: () => setState(
-                  () => _month = DateTime(_month.year, _month.month - 1),
-                ),
-                onNext: () => setState(
-                  () => _month = DateTime(_month.year, _month.month + 1),
-                ),
-              ),
-              Expanded(
-                child: _MonthGrid(
-                  month: _month,
-                  selected: _selected,
-                  events: events,
-                  onSelect: (DateTime d) => setState(() => _selected = d),
-                ),
-              ),
-              Expanded(
-                child: _DayDetails(selected: _selected, events: events),
-              ),
-            ],
+          return tasksAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (Object e, StackTrace _) => Center(child: Text('Error: $e')),
+            data: (List<Task> tasks) {
+              return Column(
+                children: <Widget>[
+                  _MonthHeader(
+                    month: _month,
+                    onPrev: () => setState(
+                      () => _month = DateTime(_month.year, _month.month - 1),
+                    ),
+                    onNext: () => setState(
+                      () => _month = DateTime(_month.year, _month.month + 1),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      children: const <Widget>[
+                        Expanded(child: Center(child: Text('Mon'))),
+                        Expanded(child: Center(child: Text('Tue'))),
+                        Expanded(child: Center(child: Text('Wed'))),
+                        Expanded(child: Center(child: Text('Thu'))),
+                        Expanded(child: Center(child: Text('Fri'))),
+                        Expanded(child: Center(child: Text('Sat'))),
+                        Expanded(child: Center(child: Text('Sun'))),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: _MonthGrid(
+                      month: _month,
+                      selected: _selected,
+                      events: events,
+                      onSelect: (DateTime d) => setState(() => _selected = d),
+                    ),
+                  ),
+                  Expanded(
+                    child: _DayDetails(
+                      selected: _selected,
+                      events: events,
+                      tasks: tasks,
+                    ),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
@@ -123,7 +156,7 @@ class _MonthGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final first = DateTime(month.year, month.month, 1);
-    final startWeekday = first.weekday % 7;
+    final startWeekday = first.weekday - 1;
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
     final total = startWeekday + daysInMonth;
     final rows = (total / 7).ceil();
@@ -197,9 +230,14 @@ class _MonthGrid extends StatelessWidget {
 }
 
 class _DayDetails extends StatelessWidget {
-  const _DayDetails({required this.selected, required this.events});
+  const _DayDetails({
+    required this.selected,
+    required this.events,
+    required this.tasks,
+  });
   final DateTime selected;
   final List<TaskHistoryEvent> events;
+  final List<Task> tasks;
 
   bool _same(DateTime? d) =>
       d != null &&
@@ -209,38 +247,43 @@ class _DayDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final planned = <TaskHistoryEvent>[];
-    final movedAway = <TaskHistoryEvent>[];
-    final completed = <TaskHistoryEvent>[];
-    final deadlines = <TaskHistoryEvent>[];
+    final plannedIds = <String>{};
+    final movedAwayIds = <String>{};
+    final completedIds = <String>{};
+    final deadlineIds = <String>{};
 
     for (final TaskHistoryEvent e in events) {
       if (_same(e.newPlannedDate) &&
           (e.eventType.name == 'planned' ||
               e.eventType.name == 'rescheduled' ||
               e.eventType.name == 'created')) {
-        planned.add(e);
+        plannedIds.add(e.taskId);
       }
       if (_same(e.previousPlannedDate) && e.eventType.name == 'rescheduled') {
-        movedAway.add(e);
+        movedAwayIds.add(e.taskId);
       }
       if (e.eventType.name == 'completed' && _same(e.occurredAt)) {
-        completed.add(e);
+        completedIds.add(e.taskId);
       }
       if (_same(e.newDueDate) || _same(e.previousDueDate)) {
-        deadlines.add(e);
+        deadlineIds.add(e.taskId);
       }
     }
 
-    Widget section(String title, List<TaskHistoryEvent> items) {
+    final planned = plannedIds.toList();
+    final movedAway = movedAwayIds.toList();
+    final completed = completedIds.toList();
+    final deadlines = deadlineIds.toList();
+
+    Widget section(String title, List<String> ids) {
       return Padding(
         padding: const EdgeInsets.all(8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(title, style: Theme.of(context).textTheme.titleSmall),
-            if (items.isEmpty) const Text('None'),
-            ...items.map((TaskHistoryEvent e) => Text('Task {e.taskId}')),
+            if (ids.isEmpty) const Text('None'),
+            ...ids.map((String id) => Text(_titleFor(id, tasks))),
           ],
         ),
       );

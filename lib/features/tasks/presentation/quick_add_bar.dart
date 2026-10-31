@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,9 +18,31 @@ class _QuickAddBarState extends ConsumerState<QuickAddBar> {
   final TextEditingController _controller = TextEditingController();
   bool _isSubmitting = false;
   String? _errorMessage;
+  Timer? _errorTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    if (_errorMessage != null) {
+      _errorTimer?.cancel();
+      setState(() => _errorMessage = null);
+    }
+  }
+
+  void _startErrorTimer() {
+    _errorTimer?.cancel();
+    _errorTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _errorMessage = null);
+    });
+  }
 
   @override
   void dispose() {
+    _errorTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -30,6 +53,7 @@ class _QuickAddBarState extends ConsumerState<QuickAddBar> {
     final String title = _controller.text.trim();
     if (title.isEmpty) {
       setState(() => _errorMessage = 'Title is required');
+      _startErrorTimer();
       return;
     }
 
@@ -44,6 +68,7 @@ class _QuickAddBarState extends ConsumerState<QuickAddBar> {
       _controller.clear();
     } catch (error) {
       setState(() => _errorMessage = error.toString());
+      _startErrorTimer();
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
