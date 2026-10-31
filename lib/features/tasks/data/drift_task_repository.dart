@@ -1,12 +1,11 @@
 import 'package:drift/drift.dart' hide isNull, isNotNull;
+import 'package:momentum/core/database/app_database.dart' as db;
+import 'package:momentum/core/database/tables/task_history_events.dart' as hist;
+import 'package:momentum/core/database/tables/tasks.dart' as tables;
+import 'package:momentum/features/tasks/domain/task.dart';
+import 'package:momentum/features/tasks/domain/task_history_event.dart';
+import 'package:momentum/features/tasks/domain/task_repository.dart';
 import 'package:uuid/uuid.dart';
-
-import '../../../core/database/app_database.dart' as db;
-import '../../../core/database/tables/task_history_events.dart' as hist;
-import '../../../core/database/tables/tasks.dart' as tables;
-import '../domain/task.dart';
-import '../domain/task_history_event.dart';
-import '../domain/task_repository.dart';
 
 class DriftTaskRepository implements TaskRepository {
   DriftTaskRepository(this._database);

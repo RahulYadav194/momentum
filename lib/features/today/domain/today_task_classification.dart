@@ -1,106 +1,151 @@
 import '../../tasks/domain/task.dart' show Task, TaskPriority, TaskStatus;
 
-// re-export Task types for convenience
 export '../../tasks/domain/task.dart' show Task, TaskPriority, TaskStatus;
 
 class TodayTaskSections {
   const TodayTaskSections({
-    required this.focus,
-    required this.dueToday,
+    required this.plannedToday,
+    required this.missedPlans,
     required this.overdue,
+    required this.dueToday,
+    required this.suggestedForToday,
+    required this.upcoming,
+    required this.unscheduled,
     required this.completedToday,
   });
 
-  final List<Task> focus;
-  final List<Task> dueToday;
+  final List<Task> plannedToday;
+  final List<Task> missedPlans;
   final List<Task> overdue;
+  final List<Task> dueToday;
+  final List<Task> suggestedForToday;
+  final List<Task> upcoming;
+  final List<Task> unscheduled;
   final List<Task> completedToday;
+
+  /// Pending tasks that need attention in today's dashboard.
+  List<Task> get relevantTasks => <Task>[
+    ...missedPlans,
+    ...plannedToday,
+    ...overdue,
+    ...dueToday,
+    ...suggestedForToday,
+  ];
 }
 
-// Aliases for compatibility
 typedef TaskClassification = TodayTaskSections;
 typedef TodayDashboardSections = TodayTaskSections;
 typedef TodaySections = TodayTaskSections;
 
-DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
 
-bool _isCompleted(Task t) => t.status == TaskStatus.completed;
+int _compareByDateThenId(Task a, Task b, DateTime? dateA, DateTime? dateB) {
+  if (dateA == null && dateB == null) return a.id.compareTo(b.id);
+  if (dateA == null) return 1;
+  if (dateB == null) return -1;
+  final int dateComparison = _dateOnly(dateA).compareTo(_dateOnly(dateB));
+  return dateComparison != 0 ? dateComparison : a.id.compareTo(b.id);
+}
 
+int _compareByPriorityThenId(Task a, Task b) {
+  final int priorityComparison = b.priority.index.compareTo(a.priority.index);
+  return priorityComparison != 0 ? priorityComparison : a.id.compareTo(b.id);
+}
+
+/// Classifies each task into at most one Today category.
+///
+/// Calendar-day comparisons use the local date components of each [DateTime].
 TodayTaskSections classifyTasks(List<Task> tasks, DateTime now) {
-  final today = _dateOnly(now);
-  final focus = <Task>[];
-  final dueToday = <Task>[];
-  final overdue = <Task>[];
-  final completedToday = <Task>[];
+  final DateTime today = _dateOnly(now);
+  final List<Task> plannedToday = <Task>[];
+  final List<Task> missedPlans = <Task>[];
+  final List<Task> overdue = <Task>[];
+  final List<Task> dueToday = <Task>[];
+  final List<Task> suggestedForToday = <Task>[];
+  final List<Task> upcoming = <Task>[];
+  final List<Task> unscheduled = <Task>[];
+  final List<Task> completedToday = <Task>[];
 
-  for (final t in tasks) {
-    if (_isCompleted(t)) {
-      if (t.completedAt != null && _dateOnly(t.completedAt!) == today) {
-        completedToday.add(t);
+  for (final Task task in tasks) {
+    if (task.status == TaskStatus.completed) {
+      final DateTime? completedAt = task.completedAt;
+      if (completedAt != null && _dateOnly(completedAt) == today) {
+        completedToday.add(task);
       }
       continue;
     }
-    final due = t.dueDate;
-    final dueDateOnly = due == null ? null : _dateOnly(due);
-    final isOverdue = dueDateOnly != null && dueDateOnly.isBefore(today);
-    if (isOverdue) {
-      overdue.add(t);
-      continue;
+
+    final DateTime? plannedDate = task.plannedDate == null
+        ? null
+        : _dateOnly(task.plannedDate!);
+    final DateTime? dueDate = task.dueDate == null
+        ? null
+        : _dateOnly(task.dueDate!);
+
+    if (plannedDate != null && plannedDate.isBefore(today)) {
+      missedPlans.add(task);
+    } else if (plannedDate == today) {
+      plannedToday.add(task);
+    } else if (dueDate != null && dueDate.isBefore(today)) {
+      overdue.add(task);
+    } else if (dueDate == today) {
+      dueToday.add(task);
+    } else if (plannedDate == null &&
+        dueDate == null &&
+        task.priority == TaskPriority.high) {
+      suggestedForToday.add(task);
+    } else if ((plannedDate != null && plannedDate.isAfter(today)) ||
+        (dueDate != null && dueDate.isAfter(today))) {
+      upcoming.add(task);
+    } else {
+      unscheduled.add(task);
     }
-    final isDueToday = dueDateOnly != null && dueDateOnly == today;
-    if (t.priority == TaskPriority.high && !isOverdue) {
-      focus.add(t);
-    } else if (isDueToday) {
-      dueToday.add(t);
-    }
-    // high priority with future/no deadline already in focus; non-high non-due-today? 
   }
 
-  // Ensure tasks due today that are high priority already in focus (not duplicated)
-  // Remove any dueToday that ended up in focus
-  final focusIds = focus.map((t) => t.id).toSet();
-  dueToday.removeWhere((t) => focusIds.contains(t.id));
-
-  // Sort
-  focus.sort((a, b) {
-    final ad = a.dueDate == null ? null : _dateOnly(a.dueDate!);
-    final bd = b.dueDate == null ? null : _dateOnly(b.dueDate!);
-    if (ad == null && bd == null) return a.id.compareTo(b.id);
-    if (ad == null) return 1;
-    if (bd == null) return -1;
-    final c = ad.compareTo(bd);
-    return c != 0 ? c : a.id.compareTo(b.id);
+  plannedToday.sort(
+    (Task a, Task b) => _compareByDateThenId(a, b, a.dueDate, b.dueDate),
+  );
+  missedPlans.sort(
+    (Task a, Task b) =>
+        _compareByDateThenId(a, b, a.plannedDate, b.plannedDate),
+  );
+  overdue.sort(
+    (Task a, Task b) => _compareByDateThenId(a, b, a.dueDate, b.dueDate),
+  );
+  dueToday.sort(_compareByPriorityThenId);
+  suggestedForToday.sort(_compareByPriorityThenId);
+  upcoming.sort((Task a, Task b) {
+    final DateTime? dateA = a.plannedDate ?? a.dueDate;
+    final DateTime? dateB = b.plannedDate ?? b.dueDate;
+    return _compareByDateThenId(a, b, dateA, dateB);
   });
-  dueToday.sort((a, b) {
-    final pa = a.priority.index;
-    final pb = b.priority.index;
-    // higher priority first: high index? TaskPriority order low,medium,high => high index 2. We want high first, so descending
-    if (pa != pb) return pb.compareTo(pa);
-    return a.id.compareTo(b.id);
-  });
-  overdue.sort((a, b) {
-    final ad = _dateOnly(a.dueDate!);
-    final bd = _dateOnly(b.dueDate!);
-    final c = ad.compareTo(bd);
-    return c != 0 ? c : a.id.compareTo(b.id);
-  });
-  completedToday.sort((a, b) {
-    final ac = a.completedAt!;
-    final bc = b.completedAt!;
-    final c = bc.compareTo(ac); // newest first
-    return c != 0 ? c : a.id.compareTo(b.id);
+  unscheduled.sort((Task a, Task b) => a.id.compareTo(b.id));
+  completedToday.sort((Task a, Task b) {
+    final DateTime completedA = a.completedAt!;
+    final DateTime completedB = b.completedAt!;
+    final int completedComparison = completedB.compareTo(completedA);
+    return completedComparison != 0
+        ? completedComparison
+        : a.id.compareTo(b.id);
   });
 
   return TodayTaskSections(
-    focus: focus,
-    dueToday: dueToday,
+    plannedToday: plannedToday,
+    missedPlans: missedPlans,
     overdue: overdue,
+    dueToday: dueToday,
+    suggestedForToday: suggestedForToday,
+    upcoming: upcoming,
+    unscheduled: unscheduled,
     completedToday: completedToday,
   );
 }
 
-// Alias function names
-TodayTaskSections classifyTodayTasks(List<Task> tasks, DateTime now) => classifyTasks(tasks, now);
-TodayTaskSections groupTasksForToday(List<Task> tasks, DateTime now) => classifyTasks(tasks, now);
-TodayTaskSections groupTasks(List<Task> tasks, DateTime now) => classifyTasks(tasks, now);
-TodayTaskSections buildTodaySections(List<Task> tasks, DateTime now) => classifyTasks(tasks, now);
+TodayTaskSections classifyTodayTasks(List<Task> tasks, DateTime now) =>
+    classifyTasks(tasks, now);
+TodayTaskSections groupTasksForToday(List<Task> tasks, DateTime now) =>
+    classifyTasks(tasks, now);
+TodayTaskSections groupTasks(List<Task> tasks, DateTime now) =>
+    classifyTasks(tasks, now);
+TodayTaskSections buildTodaySections(List<Task> tasks, DateTime now) =>
+    classifyTasks(tasks, now);

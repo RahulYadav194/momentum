@@ -33,10 +33,12 @@ void main() {
     );
     await tester.pumpAndSettle();
     // Navigate to the Tasks tab.
-    await tester.tap(find.descendant(
-      of: find.byType(NavigationBar),
-      matching: find.text('Tasks'),
-    ));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Tasks'),
+      ),
+    );
     await tester.pumpAndSettle();
   }
 
@@ -90,8 +92,73 @@ void main() {
     expect(find.text('Save changes'), findsOneWidget);
   });
 
+  testWidgets('plan date can be set and cleared without changing due date', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.byTooltip('New task with details'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'Plan independently',
+    );
+
+    await tester.tap(find.text('Add plan date'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('10').last);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add due date'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('20').last);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Create task'));
+    await tester.tap(find.text('Create task'));
+    await tester.pumpAndSettle();
+
+    Task task = (await repository.getAll()).single;
+    expect(
+      task.plannedDate,
+      DateTime(DateTime.now().year, DateTime.now().month, 10),
+    );
+    expect(
+      task.dueDate,
+      DateTime(DateTime.now().year, DateTime.now().month, 20),
+    );
+
+    await tester.tap(find.text('Plan independently'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Plan 10/${DateTime.now().month}/${DateTime.now().year}'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Due 20/${DateTime.now().month}/${DateTime.now().year}'),
+      findsWidgets,
+    );
+
+    await tester.ensureVisible(find.byTooltip('Clear plan date'));
+    await tester.tap(find.byTooltip('Clear plan date'));
+    await tester.ensureVisible(find.text('Save changes'));
+    await tester.tap(find.text('Save changes'));
+    await tester.pumpAndSettle();
+
+    task = (await repository.getAll()).single;
+    expect(task.plannedDate, isNull);
+    expect(
+      task.dueDate,
+      DateTime(DateTime.now().year, DateTime.now().month, 20),
+    );
+  });
+
   testWidgets('completing a task toggles its state', (tester) async {
-    final Task task = await repository.create(const TaskDraft(title: 'Toggle me'));
+    final Task task = await repository.create(
+      const TaskDraft(title: 'Toggle me'),
+    );
 
     await pumpApp(tester);
 

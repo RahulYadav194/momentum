@@ -6,6 +6,10 @@ import 'package:momentum/features/tasks/domain/task_repository.dart';
 
 /// An in-memory [TaskRepository] for widget tests.
 class FakeTaskRepository implements TaskRepository {
+  FakeTaskRepository({DateTime Function()? clock})
+    : _clock = clock ?? DateTime.now;
+
+  final DateTime Function() _clock;
   final List<Task> _tasks = <Task>[];
   final StreamController<List<Task>> _controller =
       StreamController<List<Task>>.broadcast();
@@ -24,8 +28,8 @@ class FakeTaskRepository implements TaskRepository {
       priority: draft.priority,
       dueDate: draft.dueDate,
       plannedDate: draft.plannedDate,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
+      createdAt: _clock(),
+      updatedAt: _clock(),
     );
     _tasks.insert(0, task);
     _emit();
@@ -98,10 +102,13 @@ class FakeTaskRepository implements TaskRepository {
       dueDate: update.clearDueDate
           ? null
           : (update.dueDate ?? existing.dueDate),
+      plannedDate: update.clearPlannedDate
+          ? null
+          : (update.plannedDate ?? existing.plannedDate),
       createdAt: existing.createdAt,
-      updatedAt: DateTime.now(),
+      updatedAt: _clock(),
       completedAt: update.status == TaskStatus.completed
-          ? DateTime.now()
+          ? _clock()
           : (update.status == TaskStatus.pending ? null : existing.completedAt),
     );
     _tasks[index] = updated;
@@ -123,9 +130,9 @@ class FakeTaskRepository implements TaskRepository {
       priority: _tasks[index].priority,
       dueDate: _tasks[index].dueDate,
       plannedDate: _tasks[index].plannedDate,
-      deletedAt: DateTime.now(),
+      deletedAt: _clock(),
       createdAt: _tasks[index].createdAt,
-      updatedAt: DateTime.now(),
+      updatedAt: _clock(),
       completedAt: _tasks[index].completedAt,
     );
     _emit();
@@ -138,7 +145,7 @@ class FakeTaskRepository implements TaskRepository {
     if (index == -1) throw StateError('Task not found: $id');
 
     final Task existing = _tasks[index];
-    final DateTime now = DateTime.now();
+    final DateTime now = _clock();
     final Task completed = Task(
       id: existing.id,
       title: existing.title,
@@ -146,6 +153,7 @@ class FakeTaskRepository implements TaskRepository {
       status: TaskStatus.completed,
       priority: existing.priority,
       dueDate: existing.dueDate,
+      plannedDate: existing.plannedDate,
       createdAt: existing.createdAt,
       updatedAt: now,
       completedAt: now,
@@ -161,7 +169,7 @@ class FakeTaskRepository implements TaskRepository {
     if (index == -1) throw StateError('Task not found: $id');
 
     final Task existing = _tasks[index];
-    final DateTime now = DateTime.now();
+    final DateTime now = _clock();
     final Task reopened = Task(
       id: existing.id,
       title: existing.title,
@@ -169,6 +177,7 @@ class FakeTaskRepository implements TaskRepository {
       status: TaskStatus.pending,
       priority: existing.priority,
       dueDate: existing.dueDate,
+      plannedDate: existing.plannedDate,
       createdAt: existing.createdAt,
       updatedAt: now,
       completedAt: null,

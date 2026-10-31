@@ -76,6 +76,69 @@ void main() {
     );
   });
 
+  test(
+    'planned date changes preserve the deadline and record history',
+    () async {
+      final oldPlan = DateTime(2026, 10, 26);
+      final newPlan = DateTime(2026, 10, 28);
+      final dueDate = DateTime(2026, 11, 2);
+      final task = await repository.create(
+        TaskDraft(
+          title: 'Independent dates',
+          plannedDate: oldPlan,
+          dueDate: dueDate,
+        ),
+      );
+
+      final updated = await repository.update(
+        task.id,
+        TaskUpdate(plannedDate: newPlan),
+      );
+      final history = await repository.getHistoryForTask(task.id);
+      final rescheduled = history
+          .where((event) => event.eventType == TaskHistoryEventType.rescheduled)
+          .single;
+
+      expect(updated.plannedDate, newPlan);
+      expect(updated.dueDate, dueDate);
+      expect(rescheduled.previousPlannedDate, oldPlan);
+      expect(rescheduled.newPlannedDate, newPlan);
+      expect(rescheduled.previousDueDate, isNull);
+      expect(rescheduled.newDueDate, isNull);
+    },
+  );
+
+  test(
+    'clearing planned date preserves deadline and records history',
+    () async {
+      final plannedDate = DateTime(2026, 10, 26);
+      final dueDate = DateTime(2026, 11, 2);
+      final task = await repository.create(
+        TaskDraft(
+          title: 'Clear plan',
+          plannedDate: plannedDate,
+          dueDate: dueDate,
+        ),
+      );
+
+      final updated = await repository.update(
+        task.id,
+        const TaskUpdate(clearPlannedDate: true),
+      );
+      final history = await repository.getHistoryForTask(task.id);
+      final rescheduled = history
+          .where((event) => event.eventType == TaskHistoryEventType.rescheduled)
+          .single;
+
+      expect(updated.plannedDate, isNull);
+      expect(updated.dueDate, dueDate);
+      expect(rescheduled.previousPlannedDate, plannedDate);
+      expect(rescheduled.newPlannedDate, isNull);
+      expect(rescheduled.previousDueDate, isNull);
+      expect(rescheduled.newDueDate, isNull);
+    },
+  );
+
   test('deadline change records previous and new', () async {
     final task = await repository.create(
       TaskDraft(title: 'D', dueDate: DateTime(2026, 10, 26)),

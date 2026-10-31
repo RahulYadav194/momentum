@@ -5,28 +5,31 @@ import 'package:go_router/go_router.dart';
 import '../../app/routes.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../tasks/data/task_providers.dart';
+import '../tasks/domain/task.dart';
 import '../tasks/domain/task_repository.dart';
 import '../tasks/presentation/quick_add_bar.dart';
+import '../tasks/presentation/task_form_sheet.dart';
 import '../tasks/presentation/task_tile.dart';
 import 'domain/today_task_classification.dart';
+
+final Provider<DateTime Function()> todayClockProvider =
+    Provider<DateTime Function()>((Ref ref) => DateTime.now);
 
 class TodayPage extends ConsumerWidget {
   const TodayPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tasksAsync = ref.watch(taskListProvider);
+    final AsyncValue<List<Task>> tasksAsync = ref.watch(taskListProvider);
 
     return tasksAsync.when(
-      loading: () => const Center(
-        child: CircularProgressIndicator(),
-      ),
-      error: (error, stackTrace) => Center(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (Object error, StackTrace stackTrace) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
+            children: <Widget>[
               const Icon(Icons.error_outline, size: 48),
               const SizedBox(height: 16),
               const Text(
@@ -34,10 +37,7 @@ class TodayPage extends ConsumerWidget {
                 style: TextStyle(fontSize: 18),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Please try again.',
-                textAlign: TextAlign.center,
-              ),
+              const Text('Please try again.', textAlign: TextAlign.center),
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () => ref.invalidate(taskListProvider),
@@ -47,30 +47,23 @@ class TodayPage extends ConsumerWidget {
           ),
         ),
       ),
-      data: (tasks) {
-        if (tasks.isEmpty) {
-          return Scaffold(
-            body: const EmptyState(
-              icon: Icons.today_outlined,
-              title: 'Nothing planned for today',
-              message: 'Your agenda is clear. Add a task to get started.',
-            ),
-            bottomNavigationBar: const QuickAddBar(),
-          );
-        }
-
-        final sections = classifyTasks(tasks, DateTime.now());
-        final completed = sections.completedToday.length;
-        final total = tasks.length;
-        final progress = total == 0 ? 0.0 : completed / total;
-
-        final now = DateTime.now();
-        final greeting = now.hour < 12
+      data: (List<Task> tasks) {
+        final DateTime now = ref.watch(todayClockProvider)();
+        final TodayTaskSections sections = classifyTasks(tasks, now);
+        final int completedCount = sections.completedToday.length;
+        final int relevantCount =
+            sections.relevantTasks.length + completedCount;
+        final double progress = relevantCount == 0
+            ? 0
+            : completedCount / relevantCount;
+        final String dateLabel = MaterialLocalizations.of(
+          context,
+        ).formatFullDate(now);
+        final String greeting = now.hour < 12
             ? 'Good morning'
             : now.hour < 18
             ? 'Good afternoon'
             : 'Good evening';
-        final dateLabel = '//';
 
         return Scaffold(
           body: CustomScrollView(
@@ -108,20 +101,32 @@ class TodayPage extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(
-                            'Daily progress',
+                            'Today’s progress',
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: 8),
                           LinearProgressIndicator(value: progress),
                           const SizedBox(height: 4),
-                          Text(' of  tasks completed'),
+                          Text(
+                            '$completedCount of $relevantCount relevant tasks completed today',
+                          ),
                         ],
                       ),
                     ),
                   ),
                 ),
               ),
-              ..._buildSections(context, sections, ref),
+              if (tasks.isEmpty)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: EmptyState(
+                    icon: Icons.today_outlined,
+                    title: 'Nothing planned for today',
+                    message: 'Your agenda is clear. Add a task to get started.',
+                  ),
+                )
+              else
+                ..._buildSections(context, ref, sections, now),
             ],
           ),
           bottomNavigationBar: const QuickAddBar(),
@@ -132,61 +137,249 @@ class TodayPage extends ConsumerWidget {
 
   List<Widget> _buildSections(
     BuildContext context,
-    TodayTaskSections sections,
     WidgetRef ref,
+    TodayTaskSections sections,
+    DateTime now,
   ) {
-    final groups = <MapEntry<String, List<Task>>>[
-      MapEntry("Today's Focus", sections.focus),
-      MapEntry('Due Today', sections.dueToday),
-      MapEntry('Overdue', sections.overdue),
-      MapEntry('Completed Today', sections.completedToday),
-    ];
-    return groups.expand((entry) {
-      return <Widget>[
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text(
-              entry.key,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-        ),
-        if (entry.value.isEmpty)
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final List<Widget> result = <Widget>[];
+
+    void addSection({
+      required String title,
+      required IconData icon,
+      required Color color,
+      required List<Task> tasks,
+      bool missed = false,
+    }) {
+      if (tasks.isEmpty) return;
+
+      result
+        ..add(
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(
-                'No tasks',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Row(
+                children: <Widget>[
+                  Icon(icon, size: 20, color: color),
+                  const SizedBox(width: 8),
+                  Text(title, style: Theme.of(context).textTheme.titleMedium),
+                ],
               ),
             ),
-          )
-        else
+          ),
+        )
+        ..add(
           SliverList(
-            delegate: SliverChildBuilderDelegate((context, index) {
-              final task = entry.value[index];
+            delegate: SliverChildBuilderDelegate((
+              BuildContext context,
+              int index,
+            ) {
+              final Task task = tasks[index];
               return Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
+                  horizontal: 12,
+                  vertical: 3,
                 ),
                 child: Card(
-                  child: TaskTile(
-                    task: task,
-                    onToggle: (bool completed) =>
-                        _toggleTask(context, ref, task, completed),
-                    onTap: () {},
-                    onDelete: () {},
+                  color: color.withAlpha(18),
+                  child: Column(
+                    children: <Widget>[
+                      TaskTile(
+                        task: task,
+                        onToggle: (bool completed) =>
+                            _toggleTask(context, ref, task, completed),
+                        onTap: () => _editTask(context, ref, task),
+                        onDelete: () {},
+                      ),
+                      if (missed)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            alignment: WrapAlignment.end,
+                            children: <Widget>[
+                              OutlinedButton(
+                                onPressed: () =>
+                                    _rescheduleTask(context, ref, task, now),
+                                child: const Text('Reschedule'),
+                              ),
+                              TextButton(
+                                onPressed: () => _keepMissedPlan(context, task),
+                                child: const Text('Keep in Missed Plans'),
+                              ),
+                              TextButton(
+                                onPressed: () =>
+                                    _removePlanDate(context, ref, task),
+                                child: const Text('Remove Plan Date'),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               );
-            }, childCount: entry.value.length),
+            }, childCount: tasks.length),
           ),
-      ];
-    }).toList();
+        );
+    }
+
+    addSection(
+      title: 'Planned Today',
+      icon: Icons.today_outlined,
+      color: colors.primary,
+      tasks: sections.plannedToday,
+    );
+    addSection(
+      title: 'Missed Plans',
+      icon: Icons.event_busy_outlined,
+      color: colors.error,
+      tasks: sections.missedPlans,
+      missed: true,
+    );
+    addSection(
+      title: 'Overdue',
+      icon: Icons.warning_amber_outlined,
+      color: colors.error,
+      tasks: sections.overdue,
+    );
+    addSection(
+      title: 'Due Today',
+      icon: Icons.event_available_outlined,
+      color: colors.secondary,
+      tasks: sections.dueToday,
+    );
+    addSection(
+      title: 'Suggested for Today',
+      icon: Icons.priority_high,
+      color: colors.tertiary,
+      tasks: sections.suggestedForToday,
+    );
+    addSection(
+      title: 'Upcoming',
+      icon: Icons.upcoming_outlined,
+      color: colors.primary,
+      tasks: sections.upcoming,
+    );
+    addSection(
+      title: 'Unscheduled',
+      icon: Icons.inbox_outlined,
+      color: colors.onSurfaceVariant,
+      tasks: sections.unscheduled,
+    );
+    addSection(
+      title: 'Completed Today',
+      icon: Icons.task_alt,
+      color: colors.tertiary,
+      tasks: sections.completedToday,
+    );
+
+    if (sections.relevantTasks.isEmpty) {
+      result.add(
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Text(
+              'Nothing needs your attention today.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return result;
+  }
+
+  Future<void> _editTask(BuildContext context, WidgetRef ref, Task task) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext context) => TaskFormSheet(
+        initialTask: task,
+        onSave:
+            ({
+              required String title,
+              String? description,
+              required TaskPriority priority,
+              DateTime? dueDate,
+              DateTime? plannedDate,
+            }) async {
+              final TaskRepository repository = ref.read(
+                taskRepositoryProvider,
+              );
+              await repository.update(
+                task.id,
+                TaskUpdate(
+                  title: title,
+                  description: description,
+                  clearDescription: description == null,
+                  priority: priority,
+                  dueDate: dueDate,
+                  clearDueDate: dueDate == null && task.dueDate != null,
+                  plannedDate: plannedDate,
+                  clearPlannedDate:
+                      plannedDate == null && task.plannedDate != null,
+                ),
+              );
+            },
+      ),
+    );
+  }
+
+  Future<void> _rescheduleTask(
+    BuildContext context,
+    WidgetRef ref,
+    Task task,
+    DateTime now,
+  ) async {
+    final DateTime? plannedDate = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (plannedDate == null) return;
+
+    try {
+      await ref
+          .read(taskRepositoryProvider)
+          .update(task.id, TaskUpdate(plannedDate: plannedDate));
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not reschedule task: $error')),
+        );
+      }
+    }
+  }
+
+  void _keepMissedPlan(BuildContext context, Task task) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('"${task.title}" will remain in Missed Plans.')),
+    );
+  }
+
+  Future<void> _removePlanDate(
+    BuildContext context,
+    WidgetRef ref,
+    Task task,
+  ) async {
+    try {
+      await ref
+          .read(taskRepositoryProvider)
+          .update(task.id, const TaskUpdate(clearPlannedDate: true));
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not remove plan date: $error')),
+        );
+      }
+    }
   }
 
   Future<void> _toggleTask(

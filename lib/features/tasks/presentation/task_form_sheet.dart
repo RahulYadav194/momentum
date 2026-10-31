@@ -4,22 +4,20 @@ import '../domain/task.dart';
 
 /// A bottom sheet for creating or editing a task.
 class TaskFormSheet extends StatefulWidget {
-  const TaskFormSheet({
-    super.key,
-    this.initialTask,
-    required this.onSave,
-  });
+  const TaskFormSheet({super.key, this.initialTask, required this.onSave});
 
   /// The task being edited, or `null` for a new task.
   final Task? initialTask;
 
-  /// Called with the validated title, description, priority and due date.
+  /// Called with the validated task fields.
   final Future<void> Function({
     required String title,
     String? description,
     required TaskPriority priority,
     DateTime? dueDate,
-  }) onSave;
+    DateTime? plannedDate,
+  })
+  onSave;
 
   @override
   State<TaskFormSheet> createState() => _TaskFormSheetState();
@@ -31,6 +29,7 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
   late final TextEditingController _descriptionController;
   late TaskPriority _priority;
   DateTime? _dueDate;
+  DateTime? _plannedDate;
   bool _isSaving = false;
   String? _errorMessage;
 
@@ -47,6 +46,7 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
     );
     _priority = widget.initialTask?.priority ?? TaskPriority.medium;
     _dueDate = widget.initialTask?.dueDate;
+    _plannedDate = widget.initialTask?.plannedDate;
   }
 
   @override
@@ -73,6 +73,7 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
             : _descriptionController.text.trim(),
         priority: _priority,
         dueDate: _dueDate,
+        plannedDate: _plannedDate,
       );
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
@@ -98,6 +99,19 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
     }
   }
 
+  Future<void> _pickPlannedDate() async {
+    final DateTime now = DateTime.now();
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _plannedDate ?? now,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() => _plannedDate = picked);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -114,112 +128,135 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
         child: Form(
           key: _formKey,
           child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Text(
-              _isEditing ? 'Edit task' : 'New task',
-              style: theme.textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _titleController,
-              autofocus: true,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Title',
-                border: OutlineInputBorder(),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Text(
+                _isEditing ? 'Edit task' : 'New task',
+                style: theme.textTheme.titleLarge,
               ),
-              validator: (String? value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Title is required';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _descriptionController,
-              minLines: 2,
-              maxLines: 4,
-              textInputAction: TextInputAction.newline,
-              decoration: const InputDecoration(
-                labelText: 'Description (optional)',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _titleController,
+                autofocus: true,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Title',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (String? value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Title is required';
+                  }
+                  return null;
+                },
               ),
-            ),
-            const SizedBox(height: 12),
-            Text('Priority', style: theme.textTheme.labelLarge),
-            const SizedBox(height: 8),
-            SegmentedButton<TaskPriority>(
-              segments: const <ButtonSegment<TaskPriority>>[
-                ButtonSegment<TaskPriority>(
-                  value: TaskPriority.low,
-                  label: Text('Low'),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _descriptionController,
+                minLines: 2,
+                maxLines: 4,
+                textInputAction: TextInputAction.newline,
+                decoration: const InputDecoration(
+                  labelText: 'Description (optional)',
+                  border: OutlineInputBorder(),
                 ),
-                ButtonSegment<TaskPriority>(
-                  value: TaskPriority.medium,
-                  label: Text('Medium'),
-                ),
-                ButtonSegment<TaskPriority>(
-                  value: TaskPriority.high,
-                  label: Text('High'),
-                ),
-              ],
-              selected: <TaskPriority>{_priority},
-              onSelectionChanged: (Set<TaskPriority> selection) {
-                setState(() => _priority = selection.first);
-              },
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickDueDate,
-                    icon: const Icon(Icons.calendar_today_outlined),
-                    label: Text(
-                      _dueDate == null
-                          ? 'Add due date'
-                          : 'Due ${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}',
-                    ),
+              ),
+              const SizedBox(height: 12),
+              Text('Priority', style: theme.textTheme.labelLarge),
+              const SizedBox(height: 8),
+              SegmentedButton<TaskPriority>(
+                segments: const <ButtonSegment<TaskPriority>>[
+                  ButtonSegment<TaskPriority>(
+                    value: TaskPriority.low,
+                    label: Text('Low'),
                   ),
-                ),
-                if (_dueDate != null) ...<Widget>[
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () => setState(() => _dueDate = null),
-                    icon: const Icon(Icons.clear),
-                    tooltip: 'Clear due date',
+                  ButtonSegment<TaskPriority>(
+                    value: TaskPriority.medium,
+                    label: Text('Medium'),
+                  ),
+                  ButtonSegment<TaskPriority>(
+                    value: TaskPriority.high,
+                    label: Text('High'),
                   ),
                 ],
-              ],
-            ),
-            if (_errorMessage != null) ...<Widget>[
+                selected: <TaskPriority>{_priority},
+                onSelectionChanged: (Set<TaskPriority> selection) {
+                  setState(() => _priority = selection.first);
+                },
+              ),
               const SizedBox(height: 12),
-              Text(
-                _errorMessage!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.error,
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickPlannedDate,
+                      icon: const Icon(Icons.calendar_today_outlined),
+                      label: Text(
+                        _plannedDate == null
+                            ? 'Add plan date'
+                            : 'Plan ${_plannedDate!.day}/${_plannedDate!.month}/${_plannedDate!.year}',
+                      ),
+                    ),
+                  ),
+                  if (_plannedDate != null) ...<Widget>[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () => setState(() => _plannedDate = null),
+                      icon: const Icon(Icons.clear),
+                      tooltip: 'Clear plan date',
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickDueDate,
+                      icon: const Icon(Icons.event_outlined),
+                      label: Text(
+                        _dueDate == null
+                            ? 'Add due date'
+                            : 'Due ${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}',
+                      ),
+                    ),
+                  ),
+                  if (_dueDate != null) ...<Widget>[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () => setState(() => _dueDate = null),
+                      icon: const Icon(Icons.clear),
+                      tooltip: 'Clear due date',
+                    ),
+                  ],
+                ],
+              ),
+              if (_errorMessage != null) ...<Widget>[
+                const SizedBox(height: 12),
+                Text(
+                  _errorMessage!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.error,
+                  ),
                 ),
+              ],
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _isSaving ? null : _submit,
+                child: _isSaving
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(_isEditing ? 'Save changes' : 'Create task'),
               ),
             ],
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _isSaving ? null : _submit,
-              child: _isSaving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(_isEditing ? 'Save changes' : 'Create task'),
-            ),
-          ],
+          ),
         ),
       ),
-    ),
-  );
-}
-
+    );
+  }
 }

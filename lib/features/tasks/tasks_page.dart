@@ -61,12 +61,8 @@ class TasksPage extends ConsumerWidget {
               final Task task = tasks[index];
               return TaskTile(
                 task: task,
-                onToggle: (bool completed) => _toggleTask(
-                  context,
-                  ref,
-                  task,
-                  completed,
-                ),
+                onToggle: (bool completed) =>
+                    _toggleTask(context, ref, task, completed),
                 onTap: () => _editTask(context, ref, task),
                 onDelete: () => _confirmDelete(context, ref, task),
               );
@@ -89,56 +85,64 @@ class TasksPage extends ConsumerWidget {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (BuildContext context) => TaskFormSheet(
-        onSave: ({
-          required String title,
-          String? description,
-          required TaskPriority priority,
-          DateTime? dueDate,
-        }) async {
-          final TaskRepository repository = ref.read(taskRepositoryProvider);
-          await repository.create(
-            TaskDraft(
-              title: title,
-              description: description,
-              priority: priority,
-              dueDate: dueDate,
-            ),
-          );
-        },
+        onSave:
+            ({
+              required String title,
+              String? description,
+              required TaskPriority priority,
+              DateTime? dueDate,
+              DateTime? plannedDate,
+            }) async {
+              final TaskRepository repository = ref.read(
+                taskRepositoryProvider,
+              );
+              await repository.create(
+                TaskDraft(
+                  title: title,
+                  description: description,
+                  priority: priority,
+                  dueDate: dueDate,
+                  plannedDate: plannedDate,
+                ),
+              );
+            },
       ),
     );
   }
 
-  Future<void> _editTask(
-    BuildContext context,
-    WidgetRef ref,
-    Task task,
-  ) async {
+  Future<void> _editTask(BuildContext context, WidgetRef ref, Task task) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (BuildContext context) => TaskFormSheet(
         initialTask: task,
-        onSave: ({
-          required String title,
-          String? description,
-          required TaskPriority priority,
-          DateTime? dueDate,
-        }) async {
-          final TaskRepository repository = ref.read(taskRepositoryProvider);
-          await repository.update(
-            task.id,
-            TaskUpdate(
-              title: title,
-              description: description,
-              clearDescription: description == null,
-              priority: priority,
-              dueDate: dueDate,
-              clearDueDate: dueDate == null && task.dueDate != null,
-            ),
-          );
-        },
+        onSave:
+            ({
+              required String title,
+              String? description,
+              required TaskPriority priority,
+              DateTime? dueDate,
+              DateTime? plannedDate,
+            }) async {
+              final TaskRepository repository = ref.read(
+                taskRepositoryProvider,
+              );
+              await repository.update(
+                task.id,
+                TaskUpdate(
+                  title: title,
+                  description: description,
+                  clearDescription: description == null,
+                  priority: priority,
+                  dueDate: dueDate,
+                  clearDueDate: dueDate == null && task.dueDate != null,
+                  plannedDate: plannedDate,
+                  clearPlannedDate:
+                      plannedDate == null && task.plannedDate != null,
+                ),
+              );
+            },
       ),
     );
   }

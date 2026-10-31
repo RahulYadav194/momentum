@@ -39,12 +39,14 @@ void main() {
 
     test('creates a task with all optional fields', () async {
       final DateTime dueDate = DateTime(2026, 12, 25);
+      final DateTime plannedDate = DateTime(2026, 12, 20);
       final Task task = await repository.create(
         TaskDraft(
           title: 'Plan holiday',
           description: '  Book flights  ',
           priority: TaskPriority.high,
           dueDate: dueDate,
+          plannedDate: plannedDate,
         ),
       );
 
@@ -52,6 +54,7 @@ void main() {
       expect(task.description, 'Book flights');
       expect(task.priority, TaskPriority.high);
       expect(task.dueDate, dueDate);
+      expect(task.plannedDate, plannedDate);
     });
 
     test('rejects an empty title', () async {
@@ -126,8 +129,9 @@ void main() {
 
     test('watchAll emits updates when a task is added', () async {
       final List<List<Task>> emissions = <List<Task>>[];
-      final StreamSubscription<List<Task>> subscription =
-          repository.watchAll().listen(emissions.add);
+      final StreamSubscription<List<Task>> subscription = repository
+          .watchAll()
+          .listen(emissions.add);
 
       await repository.create(const TaskDraft(title: 'Streamed'));
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -152,8 +156,11 @@ void main() {
       );
 
       expect(updated.title, 'Renamed');
-      expect(updated.updatedAt.isAfter(created.updatedAt) ||
-          updated.updatedAt == created.updatedAt, isTrue);
+      expect(
+        updated.updatedAt.isAfter(created.updatedAt) ||
+            updated.updatedAt == created.updatedAt,
+        isTrue,
+      );
     });
 
     test('rejects an empty updated title', () async {
@@ -180,6 +187,26 @@ void main() {
 
       expect(updated.priority, TaskPriority.high);
       expect(updated.dueDate, dueDate);
+    });
+
+    test('updates planned date without changing due date', () async {
+      final DateTime originalPlan = DateTime(2026, 12, 20);
+      final DateTime dueDate = DateTime(2026, 12, 31);
+      final Task created = await repository.create(
+        TaskDraft(title: 'Task', plannedDate: originalPlan, dueDate: dueDate),
+      );
+      final DateTime newPlan = DateTime(2026, 12, 22);
+
+      final Task updated = await repository.update(
+        created.id,
+        TaskUpdate(plannedDate: newPlan),
+      );
+      final Task? persisted = await repository.getById(created.id);
+
+      expect(updated.plannedDate, newPlan);
+      expect(persisted!.plannedDate, newPlan);
+      expect(updated.dueDate, dueDate);
+      expect(persisted.dueDate, dueDate);
     });
 
     test('clears the description with the flag', () async {
@@ -245,8 +272,11 @@ void main() {
 
       expect(completed.isCompleted, isTrue);
       expect(completed.completedAt, isNotNull);
-      expect(completed.updatedAt.isAfter(created.updatedAt) ||
-          completed.updatedAt == created.updatedAt, isTrue);
+      expect(
+        completed.updatedAt.isAfter(created.updatedAt) ||
+            completed.updatedAt == created.updatedAt,
+        isTrue,
+      );
     });
 
     test('reopen clears completedAt and resets status', () async {
@@ -263,17 +293,11 @@ void main() {
     });
 
     test('complete throws StateError for a nonexistent id', () async {
-      expect(
-        () => repository.complete('missing'),
-        throwsA(isA<StateError>()),
-      );
+      expect(() => repository.complete('missing'), throwsA(isA<StateError>()));
     });
 
     test('reopen throws StateError for a nonexistent id', () async {
-      expect(
-        () => repository.reopen('missing'),
-        throwsA(isA<StateError>()),
-      );
+      expect(() => repository.reopen('missing'), throwsA(isA<StateError>()));
     });
 
     test('watchById emits the updated task after completion', () async {
@@ -282,8 +306,9 @@ void main() {
       );
 
       final List<Task?> emissions = <Task?>[];
-      final StreamSubscription<Task?> subscription =
-          repository.watchById(created.id).listen(emissions.add);
+      final StreamSubscription<Task?> subscription = repository
+          .watchById(created.id)
+          .listen(emissions.add);
 
       await repository.complete(created.id);
       await Future<void>.delayed(const Duration(milliseconds: 50));
