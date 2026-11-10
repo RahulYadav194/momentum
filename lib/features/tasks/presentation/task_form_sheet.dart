@@ -4,10 +4,18 @@ import '../domain/task.dart';
 
 /// A bottom sheet for creating or editing a task.
 class TaskFormSheet extends StatefulWidget {
-  const TaskFormSheet({super.key, this.initialTask, required this.onSave});
+  const TaskFormSheet({
+    super.key,
+    this.initialTask,
+    this.initialPlannedDate,
+    required this.onSave,
+  });
 
   /// The task being edited, or `null` for a new task.
   final Task? initialTask;
+
+  /// The plan date prefilled when creating a task.
+  final DateTime? initialPlannedDate;
 
   /// Called with the validated task fields.
   final Future<void> Function({
@@ -46,7 +54,7 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
     );
     _priority = widget.initialTask?.priority ?? TaskPriority.medium;
     _dueDate = widget.initialTask?.dueDate;
-    _plannedDate = widget.initialTask?.plannedDate;
+    _plannedDate = widget.initialTask?.plannedDate ?? widget.initialPlannedDate;
   }
 
   @override

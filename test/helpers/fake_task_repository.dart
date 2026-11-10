@@ -6,11 +6,17 @@ import 'package:momentum/features/tasks/domain/task_repository.dart';
 
 /// An in-memory [TaskRepository] for widget tests.
 class FakeTaskRepository implements TaskRepository {
-  FakeTaskRepository({DateTime Function()? clock})
-    : _clock = clock ?? DateTime.now;
+  FakeTaskRepository({
+    DateTime Function()? clock,
+    List<Task> tasks = const <Task>[],
+    List<TaskHistoryEvent> history = const <TaskHistoryEvent>[],
+  }) : _clock = clock ?? DateTime.now,
+       _tasks = List<Task>.of(tasks),
+       _history = List<TaskHistoryEvent>.of(history);
 
   final DateTime Function() _clock;
-  final List<Task> _tasks = <Task>[];
+  final List<Task> _tasks;
+  final List<TaskHistoryEvent> _history;
   final StreamController<List<Task>> _controller =
       StreamController<List<Task>>.broadcast();
 
@@ -54,7 +60,11 @@ class FakeTaskRepository implements TaskRepository {
     final StreamController<List<Task>> controller =
         StreamController<List<Task>>();
     // Emit the current state immediately, like Drift's watch().
-    controller.add(List<Task>.unmodifiable(_tasks));
+    controller.add(
+      List<Task>.unmodifiable(
+        _tasks.where((Task task) => task.deletedAt == null).toList(),
+      ),
+    );
     final StreamSubscription<List<Task>> subscription = _controller.stream
         .listen(controller.add);
     controller.onCancel = () => subscription.cancel();
@@ -189,10 +199,11 @@ class FakeTaskRepository implements TaskRepository {
 
   @override
   Future<List<TaskHistoryEvent>> getHistoryForTask(String id) async =>
-      <TaskHistoryEvent>[];
+      _history.where((TaskHistoryEvent event) => event.taskId == id).toList();
 
   @override
-  Future<List<TaskHistoryEvent>> getAllHistory() async => <TaskHistoryEvent>[];
+  Future<List<TaskHistoryEvent>> getAllHistory() async =>
+      List<TaskHistoryEvent>.unmodifiable(_history);
 
   void dispose() => _controller.close();
 }
