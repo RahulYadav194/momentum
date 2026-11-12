@@ -91,13 +91,15 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     List<TaskHistoryEvent> events,
   ) {
     final List<DateTime> dates = calendarMonthDates(_month);
+    final double textScale = MediaQuery.textScalerOf(context).scale(1);
+    final double cellExtent = _CalendarDateCell.minimumExtent;
     final CalendarAgenda agenda = buildCalendarAgenda(
       selectedDate: _selected,
       tasks: tasks,
       events: events,
     );
 
-    return Column(
+    final Widget calendarHeader = Column(
       children: <Widget>[
         _MonthHeader(
           month: _month,
@@ -126,14 +128,14 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           ),
         ),
         SizedBox(
-          height: 6 * _CalendarDateCell.extent,
+          height: 6 * cellExtent,
           child: GridView.builder(
             key: const ValueKey<String>('calendar-month-grid'),
             padding: const EdgeInsets.symmetric(horizontal: 8),
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: DateTime.daysPerWeek,
-              mainAxisExtent: _CalendarDateCell.extent,
+              mainAxisExtent: cellExtent,
             ),
             itemCount: dates.length,
             itemBuilder: (BuildContext context, int index) {
@@ -157,17 +159,35 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
             },
           ),
         ),
-        const Divider(height: 1),
-        Expanded(
-          child: _DayAgenda(
-            selectedDate: _selected,
-            agenda: agenda,
-            tasks: tasks,
-            onCreate: _createTask,
-            onEdit: _editTask,
-            onToggle: _toggleTask,
+      ],
+    );
+
+    final Widget agendaView = _DayAgenda(
+      selectedDate: _selected,
+      agenda: agenda,
+      tasks: tasks,
+      onCreate: _createTask,
+      onEdit: _editTask,
+      onToggle: _toggleTask,
+    );
+    if (textScale > 1.5) {
+      return Column(
+        children: <Widget>[
+          Expanded(
+            flex: 1,
+            child: SingleChildScrollView(child: calendarHeader),
           ),
-        ),
+          const Divider(height: 1),
+          Expanded(flex: 2, child: agendaView),
+        ],
+      );
+    }
+
+    return Column(
+      children: <Widget>[
+        calendarHeader,
+        const Divider(height: 1),
+        Expanded(child: agendaView),
       ],
     );
   }
@@ -350,7 +370,7 @@ class _CalendarDateCell extends StatelessWidget {
     required this.onSelect,
   });
 
-  static const double extent = 42;
+  static const double minimumExtent = 48;
 
   final DateTime date;
   final DateTime today;
@@ -368,13 +388,26 @@ class _CalendarDateCell extends StatelessWidget {
     final String fullDate = MaterialLocalizations.of(
       context,
     ).formatFullDate(date);
+    final List<String> semanticParts = <String>[fullDate];
+    if (isToday) semanticParts.add('today');
+    semanticParts.add(
+      '${indicators.plannedTaskCount} planned '
+      '${indicators.plannedTaskCount == 1 ? 'task' : 'tasks'}',
+    );
+    semanticParts.add(
+      '${indicators.dueTaskCount} due '
+      '${indicators.dueTaskCount == 1 ? 'task' : 'tasks'}',
+    );
+    semanticParts.add(
+      '${indicators.historyEventCount} history '
+      '${indicators.historyEventCount == 1 ? 'event' : 'events'}',
+    );
 
     return Semantics(
       key: ValueKey<String>(
         'calendar-date-${date.year}-${date.month}-${date.day}',
       ),
-      label: fullDate,
-      value: isToday ? 'Today' : null,
+      label: semanticParts.join(', '),
       button: true,
       selected: isSelected,
       onTap: onSelect,
@@ -389,49 +422,55 @@ class _CalendarDateCell extends StatelessWidget {
               shape: BoxShape.circle,
               border: isToday ? Border.all(color: colors.primary) : null,
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Stack(
+              alignment: Alignment.center,
               children: <Widget>[
-                Text(
-                  '${date.day}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: isSelected || isToday
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                    color: !isInDisplayedMonth
-                        ? colors.onSurfaceVariant.withAlpha(120)
-                        : isSelected
-                        ? colors.onPrimaryContainer
-                        : null,
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '${date.day}',
+                    maxLines: 1,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: isSelected || isToday
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: !isInDisplayedMonth
+                          ? colors.onSurfaceVariant
+                          : isSelected
+                          ? colors.onPrimaryContainer
+                          : null,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    if (indicators.hasPlannedTasks)
-                      _ActivityDot(
-                        key: ValueKey<String>(
-                          'calendar-planned-indicator-${date.year}-${date.month}-${date.day}',
+                Positioned(
+                  bottom: 0,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      if (indicators.hasPlannedTasks)
+                        _ActivityDot(
+                          key: ValueKey<String>(
+                            'calendar-planned-indicator-${date.year}-${date.month}-${date.day}',
+                          ),
+                          color: colors.primary,
                         ),
-                        color: colors.primary,
-                      ),
-                    if (indicators.hasDueTasks)
-                      _ActivityDot(
-                        key: ValueKey<String>(
-                          'calendar-due-indicator-${date.year}-${date.month}-${date.day}',
+                      if (indicators.hasDueTasks)
+                        _ActivityDot(
+                          key: ValueKey<String>(
+                            'calendar-due-indicator-${date.year}-${date.month}-${date.day}',
+                          ),
+                          color: colors.error,
                         ),
-                        color: colors.error,
-                      ),
-                    if (indicators.hasHistory)
-                      _ActivityDot(
-                        key: ValueKey<String>(
-                          'calendar-history-indicator-${date.year}-${date.month}-${date.day}',
+                      if (indicators.hasHistory)
+                        _ActivityDot(
+                          key: ValueKey<String>(
+                            'calendar-history-indicator-${date.year}-${date.month}-${date.day}',
+                          ),
+                          color: colors.onSurfaceVariant,
+                          outlined: true,
                         ),
-                        color: colors.onSurfaceVariant,
-                        outlined: true,
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),

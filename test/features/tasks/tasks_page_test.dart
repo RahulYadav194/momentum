@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:momentum/features/tasks/data/task_providers.dart';
@@ -63,6 +64,108 @@ void main() {
     expect(find.text('Second task'), findsOneWidget);
   });
 
+  testWidgets('task priority is available through semantic labels', (
+    tester,
+  ) async {
+    await repository.create(
+      const TaskDraft(title: 'Low task', priority: TaskPriority.low),
+    );
+    await repository.create(
+      const TaskDraft(title: 'Medium task', priority: TaskPriority.medium),
+    );
+    await repository.create(
+      const TaskDraft(title: 'High task', priority: TaskPriority.high),
+    );
+    final SemanticsHandle semantics = tester.ensureSemantics();
+
+    await pumpApp(tester);
+
+    for (final (String id, String label) in <(String, String)>[
+      ('fake-0', 'Low priority'),
+      ('fake-1', 'Medium priority'),
+      ('fake-2', 'High priority'),
+    ]) {
+      expect(
+        tester
+            .getSemantics(find.byKey(ValueKey<String>('task-priority-$id')))
+            .getSemanticsData()
+            .label,
+        contains(label),
+      );
+    }
+
+    semantics.dispose();
+  });
+
+  testWidgets('task completion and delete actions are named accessibly', (
+    tester,
+  ) async {
+    final Task task = await repository.create(
+      const TaskDraft(title: 'Accessible task'),
+    );
+    final SemanticsHandle semantics = tester.ensureSemantics();
+
+    await pumpApp(tester);
+
+    final SemanticsData checkbox = tester
+        .getSemantics(find.byType(Checkbox).first)
+        .getSemanticsData();
+    expect(checkbox.label, 'Mark Accessible task as complete');
+    expect(checkbox.hasAction(SemanticsAction.tap), isTrue);
+
+    final SemanticsNode deleteNode = tester.getSemantics(
+      find.byKey(ValueKey<String>('task-actions-${task.id}')),
+    );
+    final int deleteActionId = CustomSemanticsAction.getIdentifier(
+      CustomSemanticsAction(label: 'Delete Accessible task'),
+    );
+    expect(
+      deleteNode.getSemanticsData().customSemanticsActionIds,
+      contains(deleteActionId),
+    );
+
+    final Dismissible dismissible = tester.widget(
+      find.byType(Dismissible).first,
+    );
+    await dismissible.confirmDismiss!(DismissDirection.endToStart);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete task?'), findsOneWidget);
+    expect((await repository.getById(task.id))!.deletedAt, isNull);
+
+    semantics.dispose();
+  });
+
+  testWidgets('task metadata lays out on a narrow screen with large text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await repository.create(
+      TaskDraft(
+        title: 'A task title that wraps on a narrow display',
+        description:
+            'Long task details should wrap cleanly without obscuring task '
+            'controls or its due date.',
+        dueDate: DateTime(2026, 11, 12),
+      ),
+    );
+
+    await pumpApp(tester);
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(
+      find.text('A task title that wraps on a narrow display'),
+      findsOneWidget,
+    );
+    expect(find.text('Due 12/11/2026'), findsOneWidget);
+  });
+
   testWidgets('retry reloads tasks after a stream failure', (tester) async {
     int loadCount = 0;
     await pumpApp(
@@ -96,6 +199,104 @@ void main() {
 
     expect(find.text('Quick task'), findsOneWidget);
     expect(find.text('No tasks yet'), findsNothing);
+  });
+
+  testWidgets('successful quick-add dismisses keyboard without refocusing', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    final Finder input = find.byType(TextField);
+
+    await tester.showKeyboard(input);
+    await tester.enterText(input, 'Quick task without keyboard');
+    expect(tester.testTextInput.isVisible, isTrue);
+
+    await tester.tap(find.byTooltip('Add task'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Quick task without keyboard'), findsOneWidget);
+    expect(tester.testTextInput.isVisible, isFalse);
+    expect(tester.widget<TextField>(input).focusNode!.hasFocus, isFalse);
+    expect(tester.widget<TextField>(input).controller!.text, isEmpty);
+
+    await tester.pump();
+    expect(tester.widget<TextField>(input).focusNode!.hasFocus, isFalse);
+    expect(tester.testTextInput.isVisible, isFalse);
+
+    await tester.showKeyboard(input);
+    expect(tester.widget<TextField>(input).focusNode!.hasFocus, isTrue);
+    expect(tester.testTextInput.isVisible, isTrue);
+  });
+
+  testWidgets('failed quick-add keeps the task input and error feedback', (
+    tester,
+  ) async {
+    repository = _FailingTaskRepository();
+    await pumpApp(tester);
+    final Finder input = find.byType(TextField);
+
+    await tester.showKeyboard(input);
+    await tester.enterText(input, 'Retry this task');
+    await tester.tap(find.byTooltip('Add task'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Create failed'), findsOneWidget);
+    expect(tester.widget<TextField>(input).controller!.text, 'Retry this task');
+    expect(tester.widget<TextField>(input).focusNode!.hasFocus, isTrue);
+    expect(tester.testTextInput.isVisible, isTrue);
+  });
+
+  testWidgets(
+    'successful detailed task creation closes and dismisses keyboard',
+    (tester) async {
+      await pumpApp(tester);
+
+      await tester.tap(find.byTooltip('New task with details'));
+      await tester.pumpAndSettle();
+      final Finder titleInput = find.byType(TextFormField).first;
+      expect(tester.testTextInput.isVisible, isTrue);
+      await tester.enterText(titleInput, 'Detailed keyboard test');
+      await tester.ensureVisible(find.text('Create task'));
+      await tester.tap(find.text('Create task'));
+      await tester.pumpAndSettle();
+
+      expect(
+        (await repository.getAll()).single.title,
+        'Detailed keyboard test',
+      );
+      expect(find.text('New task'), findsNothing);
+      expect(find.byType(TextFormField), findsNothing);
+      expect(tester.testTextInput.isVisible, isFalse);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).focusNode!.hasFocus,
+        isFalse,
+      );
+    },
+  );
+
+  testWidgets('failed detailed creation stays open with error feedback', (
+    tester,
+  ) async {
+    repository = _FailingTaskRepository();
+    await pumpApp(tester);
+
+    await tester.tap(find.byTooltip('New task with details'));
+    await tester.pumpAndSettle();
+    final Finder titleInput = find.byType(TextFormField).first;
+    await tester.enterText(titleInput, 'Failed detailed task');
+    await tester.ensureVisible(find.text('Create task'));
+    await tester.tap(find.text('Create task'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TextFormField), findsWidgets);
+    final Finder error = find.textContaining('Create failed');
+    expect(error, findsOneWidget);
+    await tester.ensureVisible(error);
+    expect(
+      tester.widget<TextFormField>(titleInput).controller!.text,
+      'Failed detailed task',
+    );
+    expect(tester.testTextInput.isVisible, isTrue);
   });
 
   testWidgets('quick-add rejects blank titles', (tester) async {
@@ -231,4 +432,11 @@ void main() {
     expect(find.text('Gone'), findsNothing);
     expect(find.text('No tasks yet'), findsOneWidget);
   });
+}
+
+class _FailingTaskRepository extends FakeTaskRepository {
+  @override
+  Future<Task> create(TaskDraft draft) async {
+    throw StateError('Create failed');
+  }
 }

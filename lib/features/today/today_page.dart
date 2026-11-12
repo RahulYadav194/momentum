@@ -219,7 +219,12 @@ class _TodayPageState extends ConsumerState<TodayPage>
                 children: <Widget>[
                   Icon(icon, size: 20, color: color),
                   const SizedBox(width: 8),
-                  Text(title, style: Theme.of(context).textTheme.titleMedium),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
                 ],
               ),
             ),

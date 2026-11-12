@@ -194,6 +194,45 @@ void main() {
     expect(find.byTooltip('Add task'), findsOneWidget);
   });
 
+  testWidgets('Today quick-add stays unfocused after successful creation', (
+    tester,
+  ) async {
+    await pumpToday(tester);
+    final Finder input = find.byType(TextField);
+
+    await tester.showKeyboard(input);
+    await tester.enterText(input, 'Today quick-add task');
+    await tester.tap(find.byTooltip('Add task'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Today quick-add task'), findsOneWidget);
+    expect(tester.testTextInput.isVisible, isFalse);
+    expect(tester.widget<TextField>(input).focusNode!.hasFocus, isFalse);
+
+    await tester.pump();
+    expect(tester.widget<TextField>(input).focusNode!.hasFocus, isFalse);
+    expect(tester.testTextInput.isVisible, isFalse);
+  });
+
+  testWidgets('Today section headings fit narrow screens with large text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await repository.create(
+      const TaskDraft(title: 'High priority task', priority: TaskPriority.high),
+    );
+
+    await pumpToday(tester);
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Suggested for Today'), findsOneWidget);
+  });
+
   testWidgets('swiping a task asks for confirmation before deleting', (
     tester,
   ) async {

@@ -83,7 +83,10 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
         dueDate: _dueDate,
         plannedDate: _plannedDate,
       );
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        FocusScope.of(context).unfocus();
+        Navigator.of(context).pop();
+      }
     } catch (error) {
       if (mounted) {
         setState(() {

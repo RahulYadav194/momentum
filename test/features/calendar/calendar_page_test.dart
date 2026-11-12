@@ -23,8 +23,10 @@ void main() {
     FakeTaskRepository? repository,
     ThemeMode themeMode = ThemeMode.light,
     DateTime Function()? clock,
+    Size size = const Size(400, 800),
+    TextScaler? textScaler,
   }) async {
-    tester.view.physicalSize = const Size(400, 800);
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -47,6 +49,12 @@ void main() {
           ),
           themeMode: themeMode,
           home: CalendarPage(clock: clock ?? () => fixedToday),
+          builder: (BuildContext context, Widget? child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: textScaler ?? TextScaler.noScaling),
+            child: child!,
+          ),
         ),
       ),
     );
@@ -111,6 +119,29 @@ void main() {
       tester.widget<GridView>(grid).childrenDelegate.estimatedChildCount,
       42,
     );
+    final List<DateTime> allDates = calendarMonthDates(DateTime(2026, 10));
+    expect(allDates.first.weekday, DateTime.monday);
+    final Set<double> rowTops = <double>{};
+    final List<Rect> cells = <Rect>[];
+    for (final DateTime date in allDates) {
+      final Rect cell = tester.getRect(
+        find.byKey(
+          ValueKey<String>(
+            'calendar-date-${date.year}-${date.month}-${date.day}',
+          ),
+        ),
+      );
+      cells.add(cell);
+      rowTops.add(cell.top);
+      expect(cell.height, greaterThanOrEqualTo(48));
+    }
+    expect(rowTops, hasLength(6));
+    for (int row = 0; row < 6; row++) {
+      expect(
+        cells.skip(row * 7).take(7).map((Rect cell) => cell.top).toSet(),
+        hasLength(1),
+      );
+    }
     for (final DateTime date in monthDates) {
       final Rect dateRect = tester.getRect(
         find.byKey(
@@ -222,7 +253,7 @@ void main() {
     await tester.tap(find.byTooltip('Previous month'));
     await tester.pumpAndSettle();
     expect(tester.getSize(grid), marchSize);
-    expect(marchSize.height, 6 * 42);
+    expect(marchSize.height, 6 * 48);
     repository.dispose();
   });
 
@@ -239,7 +270,7 @@ void main() {
         )
         .getSemanticsData();
     expect(today.flagsCollection.isSelected.name, 'isTrue');
-    expect(today.value, 'Today');
+    expect(today.label, contains('today'));
 
     await tester.tap(find.text('14'));
     await tester.pumpAndSettle();
@@ -256,8 +287,111 @@ void main() {
         )
         .getSemanticsData();
     expect(unselectedToday.flagsCollection.isSelected.name, 'isFalse');
-    expect(unselectedToday.value, 'Today');
+    expect(unselectedToday.label, contains('today'));
     semantics.dispose();
+    repository.dispose();
+  });
+
+  testWidgets('date semantics describe activity counts and empty dates', (
+    tester,
+  ) async {
+    final DateTime today = DateTime(2026, 3, 15);
+    final FakeTaskRepository repository = FakeTaskRepository(
+      tasks: <Task>[
+        _task(
+          id: 'planned-and-due',
+          title: 'Planned and due',
+          plannedDate: today,
+          dueDate: today,
+        ),
+        _task(id: 'planned', title: 'Planned', plannedDate: today),
+        _task(id: 'due', title: 'Due', dueDate: today),
+      ],
+      history: <TaskHistoryEvent>[
+        _completedEvent('planned-and-due', DateTime(2026, 3, 15, 9)),
+        _completedEvent('planned', DateTime(2026, 3, 15, 10)),
+      ],
+    );
+    final SemanticsHandle semantics = tester.ensureSemantics();
+    await pumpCalendar(tester, repository: repository);
+
+    final Finder todayCell = find.byKey(
+      const ValueKey<String>('calendar-date-2026-3-15'),
+    );
+    final SemanticsData todayData = tester
+        .getSemantics(todayCell)
+        .getSemanticsData();
+    expect(
+      todayData.label,
+      'Sunday, March 15, 2026, today, 2 planned tasks, '
+      '2 due tasks, 2 history events',
+    );
+    expect(todayData.flagsCollection.isSelected.name, 'isTrue');
+    expect(todayData.hasAction(SemanticsAction.tap), isTrue);
+
+    final Finder emptyCell = find.byKey(
+      const ValueKey<String>('calendar-date-2026-3-14'),
+    );
+    final SemanticsData emptyData = tester
+        .getSemantics(emptyCell)
+        .getSemanticsData();
+    expect(
+      emptyData.label,
+      'Saturday, March 14, 2026, 0 planned tasks, '
+      '0 due tasks, 0 history events',
+    );
+    expect(emptyData.flagsCollection.isSelected.name, 'isFalse');
+
+    await tester.tap(emptyCell);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .getSemantics(emptyCell)
+          .getSemanticsData()
+          .flagsCollection
+          .isSelected
+          .name,
+      'isTrue',
+    );
+    semantics.dispose();
+    repository.dispose();
+  });
+
+  testWidgets('Calendar handles narrow layout and large text scaling', (
+    tester,
+  ) async {
+    final FakeTaskRepository repository = FakeTaskRepository();
+    await pumpCalendar(
+      tester,
+      repository: repository,
+      size: const Size(320, 800),
+      textScaler: const TextScaler.linear(2),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(
+      tester
+          .widget<GridView>(
+            find.byKey(const ValueKey<String>('calendar-month-grid')),
+          )
+          .childrenDelegate
+          .estimatedChildCount,
+      42,
+    );
+    for (final DateTime date in calendarMonthDates(DateTime(2026, 3))) {
+      expect(
+        tester
+            .getSize(
+              find.byKey(
+                ValueKey<String>(
+                  'calendar-date-${date.year}-${date.month}-${date.day}',
+                ),
+              ),
+            )
+            .height,
+        greaterThanOrEqualTo(48),
+      );
+    }
     repository.dispose();
   });
 

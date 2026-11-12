@@ -23,14 +23,18 @@ class CalendarAgenda {
 
 class CalendarDateIndicators {
   const CalendarDateIndicators({
-    required this.hasPlannedTasks,
-    required this.hasDueTasks,
-    required this.hasHistory,
+    required this.plannedTaskCount,
+    required this.dueTaskCount,
+    required this.historyEventCount,
   });
 
-  final bool hasPlannedTasks;
-  final bool hasDueTasks;
-  final bool hasHistory;
+  final int plannedTaskCount;
+  final int dueTaskCount;
+  final int historyEventCount;
+
+  bool get hasPlannedTasks => plannedTaskCount > 0;
+  bool get hasDueTasks => dueTaskCount > 0;
+  bool get hasHistory => historyEventCount > 0;
 
   bool get hasActivity => hasPlannedTasks || hasDueTasks || hasHistory;
 }
@@ -67,15 +71,18 @@ CalendarDateIndicators calendarIndicatorsForDate({
   required List<TaskHistoryEvent> events,
 }) {
   return CalendarDateIndicators(
-    hasPlannedTasks: tasks.any(
-      (Task task) => isSameCalendarDate(task.plannedDate, date),
-    ),
-    hasDueTasks: tasks.any(
-      (Task task) => isSameCalendarDate(task.dueDate, date),
-    ),
-    hasHistory: events.any(
-      (TaskHistoryEvent event) => isSameCalendarDate(event.occurredAt, date),
-    ),
+    plannedTaskCount: tasks
+        .where((Task task) => isSameCalendarDate(task.plannedDate, date))
+        .length,
+    dueTaskCount: tasks
+        .where((Task task) => isSameCalendarDate(task.dueDate, date))
+        .length,
+    historyEventCount: events
+        .where(
+          (TaskHistoryEvent event) =>
+              isSameCalendarDate(event.occurredAt, date),
+        )
+        .length,
   );
 }
 

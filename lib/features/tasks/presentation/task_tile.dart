@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 import '../domain/task.dart';
 
@@ -27,42 +28,62 @@ class TaskTile extends StatelessWidget {
       TaskPriority.medium => colors.primary,
       TaskPriority.high => colors.error,
     };
+    final String priorityLabel = switch (task.priority) {
+      TaskPriority.low => 'Low priority',
+      TaskPriority.medium => 'Medium priority',
+      TaskPriority.high => 'High priority',
+    };
 
-    return Dismissible(
-      key: ValueKey<String>(task.id),
-      direction: DismissDirection.endToStart,
-      confirmDismiss: (_) async {
-        onDelete();
-        return false;
+    return Semantics(
+      key: ValueKey<String>('task-actions-${task.id}'),
+      customSemanticsActions: <CustomSemanticsAction, VoidCallback>{
+        CustomSemanticsAction(label: 'Delete ${task.title}'): onDelete,
       },
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        color: colors.errorContainer,
-        child: Icon(Icons.delete_outline, color: colors.onErrorContainer),
-      ),
-      child: ListTile(
-        onTap: onTap,
-        leading: Checkbox(
-          value: task.isCompleted,
-          onChanged: (bool? value) => onToggle(value ?? false),
+      child: Dismissible(
+        key: ValueKey<String>(task.id),
+        direction: DismissDirection.endToStart,
+        confirmDismiss: (_) async {
+          onDelete();
+          return false;
+        },
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          color: colors.errorContainer,
+          child: Icon(Icons.delete_outline, color: colors.onErrorContainer),
         ),
-        title: Text(
-          task.title,
-          style: task.isCompleted
-              ? theme.textTheme.bodyLarge?.copyWith(
-                  decoration: TextDecoration.lineThrough,
-                  color: colors.onSurfaceVariant,
-                )
-              : theme.textTheme.bodyLarge,
-        ),
-        subtitle: _buildSubtitle(context),
-        trailing: Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: priorityColor,
-            shape: BoxShape.circle,
+        child: ListTile(
+          onTap: onTap,
+          leading: Checkbox(
+            value: task.isCompleted,
+            semanticLabel: task.isCompleted
+                ? 'Mark ${task.title} as incomplete'
+                : 'Mark ${task.title} as complete',
+            onChanged: (bool? value) => onToggle(value ?? false),
+          ),
+          title: Text(
+            task.title,
+            style: task.isCompleted
+                ? theme.textTheme.bodyLarge?.copyWith(
+                    decoration: TextDecoration.lineThrough,
+                    color: colors.onSurfaceVariant,
+                  )
+                : theme.textTheme.bodyLarge,
+          ),
+          subtitle: _buildSubtitle(context),
+          trailing: Semantics(
+            key: ValueKey<String>('task-priority-${task.id}'),
+            label: priorityLabel,
+            child: ExcludeSemantics(
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: priorityColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
           ),
         ),
       ),

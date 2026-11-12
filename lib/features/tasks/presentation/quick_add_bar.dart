@@ -16,6 +16,7 @@ class QuickAddBar extends ConsumerStatefulWidget {
 
 class _QuickAddBarState extends ConsumerState<QuickAddBar> {
   final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
   bool _isSubmitting = false;
   String? _errorMessage;
   Timer? _errorTimer;
@@ -44,6 +45,7 @@ class _QuickAddBarState extends ConsumerState<QuickAddBar> {
   void dispose() {
     _errorTimer?.cancel();
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -65,6 +67,7 @@ class _QuickAddBarState extends ConsumerState<QuickAddBar> {
     try {
       final TaskRepository repository = ref.read(taskRepositoryProvider);
       await repository.create(TaskDraft(title: title));
+      _focusNode.unfocus();
       _controller.clear();
     } catch (error) {
       setState(() => _errorMessage = error.toString());
@@ -92,6 +95,7 @@ class _QuickAddBarState extends ConsumerState<QuickAddBar> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
+                      focusNode: _focusNode,
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _submit(),
                       decoration: InputDecoration(
