@@ -6,6 +6,7 @@ import 'data/task_providers.dart';
 import 'domain/task.dart';
 import 'domain/task_repository.dart';
 import 'presentation/quick_add_bar.dart';
+import 'presentation/task_deletion.dart';
 import 'presentation/task_form_sheet.dart';
 import 'presentation/task_tile.dart';
 
@@ -38,6 +39,11 @@ class TasksPage extends ConsumerWidget {
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => ref.invalidate(taskListProvider),
+                  child: const Text('Retry'),
+                ),
               ],
             ),
           ),
@@ -64,7 +70,11 @@ class TasksPage extends ConsumerWidget {
                 onToggle: (bool completed) =>
                     _toggleTask(context, ref, task, completed),
                 onTap: () => _editTask(context, ref, task),
-                onDelete: () => _confirmDelete(context, ref, task),
+                onDelete: () => confirmAndDeleteTask(
+                  context,
+                  repository: ref.read(taskRepositoryProvider),
+                  task: task,
+                ),
               );
             },
           );
@@ -164,47 +174,6 @@ class TasksPage extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Could not update task: $error')),
-        );
-      }
-    }
-  }
-
-  Future<void> _confirmDelete(
-    BuildContext context,
-    WidgetRef ref,
-    Task task,
-  ) async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: const Text('Delete task?'),
-        content: Text('\u201C${task.title}\u201D will be permanently deleted.'),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      final TaskRepository repository = ref.read(taskRepositoryProvider);
-      await repository.delete(task.id);
-    } catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not delete task: $error')),
         );
       }
     }

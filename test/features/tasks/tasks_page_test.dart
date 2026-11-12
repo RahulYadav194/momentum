@@ -20,14 +20,19 @@ void main() {
     repository.dispose();
   });
 
-  Future<void> pumpApp(WidgetTester tester) async {
+  Future<void> pumpApp(
+    WidgetTester tester, {
+    Stream<List<Task>> Function()? taskStream,
+  }) async {
     final preferences = await createTestPreferences(<String, Object>{});
     await tester.pumpWidget(
       buildTestApp(
         preferences: preferences,
         overrides: <dynamic>[
           taskRepositoryProvider.overrideWithValue(repository),
-          taskListProvider.overrideWith((Ref ref) => repository.watchAll()),
+          taskListProvider.overrideWith(
+            (Ref ref) => taskStream?.call() ?? repository.watchAll(),
+          ),
         ],
       ),
     );
@@ -56,6 +61,30 @@ void main() {
 
     expect(find.text('First task'), findsOneWidget);
     expect(find.text('Second task'), findsOneWidget);
+  });
+
+  testWidgets('retry reloads tasks after a stream failure', (tester) async {
+    int loadCount = 0;
+    await pumpApp(
+      tester,
+      taskStream: () {
+        loadCount++;
+        return loadCount == 1
+            ? Stream<List<Task>>.error(StateError('temporary failure'))
+            : Stream<List<Task>>.value(<Task>[]);
+      },
+    );
+
+    expect(find.text('Could not load tasks'), findsOneWidget);
+    expect(find.textContaining('temporary failure'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+
+    expect(loadCount, 2);
+    expect(find.text('No tasks yet'), findsOneWidget);
+    expect(find.text('Could not load tasks'), findsNothing);
   });
 
   testWidgets('quick-add creates a task', (tester) async {

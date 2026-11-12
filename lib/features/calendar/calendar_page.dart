@@ -8,11 +8,9 @@ import '../tasks/domain/task_repository.dart';
 import '../tasks/presentation/task_form_sheet.dart';
 import 'domain/calendar_agenda.dart';
 
-final calendarHistoryProvider = FutureProvider<List<TaskHistoryEvent>>((
-  ref,
-) async {
+final calendarHistoryProvider = StreamProvider<List<TaskHistoryEvent>>((ref) {
   final TaskRepository repository = ref.watch(taskRepositoryProvider);
-  return repository.getAllHistory();
+  return repository.watchAllHistory();
 });
 
 String _titleFor(String id, List<Task> tasks) {
@@ -200,7 +198,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                       plannedDate: plannedDate,
                     ),
                   );
-              ref.invalidate(calendarHistoryProvider);
             },
       ),
     );
@@ -237,7 +234,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                           plannedDate == null && task.plannedDate != null,
                     ),
                   );
-              ref.invalidate(calendarHistoryProvider);
             },
       ),
     );
@@ -251,7 +247,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       } else {
         await repository.reopen(task.id);
       }
-      ref.invalidate(calendarHistoryProvider);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

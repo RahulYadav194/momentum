@@ -16,4 +16,5 @@ abstract class TaskRepository {
   Future<Task> reopen(String id);
   Future<List<TaskHistoryEvent>> getHistoryForTask(String id);
   Future<List<TaskHistoryEvent>> getAllHistory();
+  Stream<List<TaskHistoryEvent>> watchAllHistory();
 }

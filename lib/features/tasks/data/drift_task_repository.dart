@@ -402,6 +402,15 @@ class DriftTaskRepository implements TaskRepository {
     return rows.map(_toHistory).toList();
   }
 
+  @override
+  Stream<List<TaskHistoryEvent>> watchAllHistory() {
+    return (_database.select(_database.taskHistoryEvents)..orderBy([
+          (hist.TaskHistoryEvents t) => OrderingTerm.asc(t.occurredAt),
+        ]))
+        .watch()
+        .map((rows) => rows.map(_toHistory).toList());
+  }
+
   Task _toDomain(db.Task row) {
     return Task(
       id: row.id,

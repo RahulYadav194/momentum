@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:momentum/core/database/tables/task_history_events.dart'
+    show TaskHistoryEventType;
 import 'package:momentum/features/tasks/domain/task.dart';
 import 'package:momentum/features/tasks/domain/task_history_event.dart';
 import 'package:momentum/features/tasks/domain/task_repository.dart';
@@ -19,6 +21,35 @@ class FakeTaskRepository implements TaskRepository {
   final List<TaskHistoryEvent> _history;
   final StreamController<List<Task>> _controller =
       StreamController<List<Task>>.broadcast();
+  final StreamController<List<TaskHistoryEvent>> _historyController =
+      StreamController<List<TaskHistoryEvent>>.broadcast();
+
+  void _recordHistory(
+    String taskId,
+    TaskHistoryEventType eventType, {
+    DateTime? previousPlannedDate,
+    DateTime? newPlannedDate,
+    DateTime? previousDueDate,
+    DateTime? newDueDate,
+    String? previousStatus,
+    String? newStatus,
+  }) {
+    _history.add(
+      TaskHistoryEvent(
+        id: 'fake-history-${_history.length}',
+        taskId: taskId,
+        eventType: eventType,
+        occurredAt: _clock(),
+        previousPlannedDate: previousPlannedDate,
+        newPlannedDate: newPlannedDate,
+        previousDueDate: previousDueDate,
+        newDueDate: newDueDate,
+        previousStatus: previousStatus,
+        newStatus: newStatus,
+      ),
+    );
+    _historyController.add(List<TaskHistoryEvent>.unmodifiable(_history));
+  }
 
   void _emit() => _controller.add(
     List<Task>.unmodifiable(_tasks.where((t) => t.deletedAt == null).toList()),
@@ -26,6 +57,7 @@ class FakeTaskRepository implements TaskRepository {
 
   @override
   Future<Task> create(TaskDraft draft) async {
+    final DateTime now = _clock();
     final Task task = Task(
       id: 'fake-${_tasks.length}',
       title: draft.title.trim(),
@@ -34,11 +66,25 @@ class FakeTaskRepository implements TaskRepository {
       priority: draft.priority,
       dueDate: draft.dueDate,
       plannedDate: draft.plannedDate,
-      createdAt: _clock(),
-      updatedAt: _clock(),
+      createdAt: now,
+      updatedAt: now,
     );
     _tasks.insert(0, task);
     _emit();
+    _recordHistory(
+      task.id,
+      TaskHistoryEventType.created,
+      newPlannedDate: task.plannedDate,
+      newDueDate: task.dueDate,
+      newStatus: task.status.name,
+    );
+    if (task.plannedDate != null) {
+      _recordHistory(
+        task.id,
+        TaskHistoryEventType.planned,
+        newPlannedDate: task.plannedDate,
+      );
+    }
     return task;
   }
 
@@ -91,6 +137,17 @@ class FakeTaskRepository implements TaskRepository {
   }
 
   @override
+  Stream<List<TaskHistoryEvent>> watchAllHistory() {
+    final StreamController<List<TaskHistoryEvent>> controller =
+        StreamController<List<TaskHistoryEvent>>();
+    controller.add(List<TaskHistoryEvent>.unmodifiable(_history));
+    final StreamSubscription<List<TaskHistoryEvent>> subscription =
+        _historyController.stream.listen(controller.add);
+    controller.onCancel = () => subscription.cancel();
+    return controller.stream;
+  }
+
+  @override
   Future<Task> update(String id, TaskUpdate update) async {
     final int index = _tasks.indexWhere((Task t) => t.id == id);
     if (index == -1) throw StateError('Task not found: $id');
@@ -123,6 +180,36 @@ class FakeTaskRepository implements TaskRepository {
     );
     _tasks[index] = updated;
     _emit();
+    if (existing.plannedDate != updated.plannedDate) {
+      _recordHistory(
+        id,
+        existing.plannedDate == null && updated.plannedDate != null
+            ? TaskHistoryEventType.planned
+            : TaskHistoryEventType.rescheduled,
+        previousPlannedDate: existing.plannedDate,
+        newPlannedDate: updated.plannedDate,
+      );
+    }
+    if (existing.dueDate != updated.dueDate) {
+      _recordHistory(
+        id,
+        TaskHistoryEventType.deadlineChanged,
+        previousDueDate: existing.dueDate,
+        newDueDate: updated.dueDate,
+      );
+    }
+    if (existing.status != updated.status) {
+      _recordHistory(
+        id,
+        updated.status == TaskStatus.completed
+            ? TaskHistoryEventType.completed
+            : TaskHistoryEventType.reopened,
+        newPlannedDate: updated.plannedDate,
+        newDueDate: updated.dueDate,
+        previousStatus: existing.status.name,
+        newStatus: updated.status.name,
+      );
+    }
     return updated;
   }
 
@@ -146,6 +233,13 @@ class FakeTaskRepository implements TaskRepository {
       completedAt: _tasks[index].completedAt,
     );
     _emit();
+    _recordHistory(
+      id,
+      TaskHistoryEventType.deleted,
+      previousPlannedDate: _tasks[index].plannedDate,
+      previousDueDate: _tasks[index].dueDate,
+      previousStatus: _tasks[index].status.name,
+    );
     return true;
   }
 
@@ -170,6 +264,14 @@ class FakeTaskRepository implements TaskRepository {
     );
     _tasks[index] = completed;
     _emit();
+    _recordHistory(
+      id,
+      TaskHistoryEventType.completed,
+      newPlannedDate: existing.plannedDate,
+      newDueDate: existing.dueDate,
+      previousStatus: existing.status.name,
+      newStatus: TaskStatus.completed.name,
+    );
     return completed;
   }
 
@@ -194,6 +296,14 @@ class FakeTaskRepository implements TaskRepository {
     );
     _tasks[index] = reopened;
     _emit();
+    _recordHistory(
+      id,
+      TaskHistoryEventType.reopened,
+      newPlannedDate: existing.plannedDate,
+      newDueDate: existing.dueDate,
+      previousStatus: existing.status.name,
+      newStatus: TaskStatus.pending.name,
+    );
     return reopened;
   }
 
@@ -205,5 +315,8 @@ class FakeTaskRepository implements TaskRepository {
   Future<List<TaskHistoryEvent>> getAllHistory() async =>
       List<TaskHistoryEvent>.unmodifiable(_history);
 
-  void dispose() => _controller.close();
+  void dispose() {
+    unawaited(_controller.close());
+    unawaited(_historyController.close());
+  }
 }

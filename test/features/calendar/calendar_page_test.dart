@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:momentum/app/router.dart';
 import 'package:momentum/core/database/tables/task_history_events.dart'
     show TaskHistoryEventType;
 import 'package:momentum/features/calendar/calendar_page.dart';
@@ -435,6 +436,122 @@ void main() {
     expect(find.text('Nothing scheduled for this date'), findsOneWidget);
     repository.dispose();
   });
+
+  testWidgets('Calendar history streams completion and reopening from Tasks', (
+    tester,
+  ) async {
+    final DateTime now = DateTime.now();
+    final DateTime today = calendarDateOnly(now);
+    final FakeTaskRepository repository = FakeTaskRepository(
+      tasks: <Task>[
+        _task(
+          id: 'cross-screen',
+          title: 'Update from Tasks',
+          plannedDate: today,
+        ),
+      ],
+      clock: () => now,
+    );
+    await _pumpRoutedApp(tester, repository);
+
+    await _tapDestination(tester, 'Tasks');
+    await tester.tap(find.text('Update from Tasks'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.text('Plan ${today.day}/${today.month}/${today.year}'),
+    );
+    await tester.pumpAndSettle();
+    final DateTime nextDate = today.add(const Duration(days: 1));
+    await tester.tap(find.text('${nextDate.day}').first);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Save changes'));
+    await tester.tap(find.text('Save changes'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(Checkbox).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Checkbox).first);
+    await tester.pumpAndSettle();
+    await _tapDestination(tester, 'Today');
+    await tester.tap(find.byTooltip('Calendar'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Plan changed ·'), findsOneWidget);
+    expect(find.textContaining('Completed ·'), findsOneWidget);
+    expect(find.textContaining('Reopened ·'), findsOneWidget);
+    expect(
+      find.byKey(
+        ValueKey<String>(
+          'calendar-history-indicator-${today.year}-${today.month}-${today.day}',
+        ),
+      ),
+      findsOneWidget,
+    );
+    repository.dispose();
+  });
+
+  testWidgets('Calendar history streams deletion performed from Tasks', (
+    tester,
+  ) async {
+    final DateTime now = DateTime.now();
+    final DateTime today = calendarDateOnly(now);
+    final FakeTaskRepository repository = FakeTaskRepository(
+      tasks: <Task>[
+        _task(
+          id: 'deleted-from-tasks',
+          title: 'Delete from Tasks',
+          plannedDate: today,
+        ),
+      ],
+      clock: () => now,
+    );
+    await _pumpRoutedApp(tester, repository);
+
+    await _tapDestination(tester, 'Tasks');
+    await tester.drag(find.text('Delete from Tasks'), const Offset(-500, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    await _tapDestination(tester, 'Today');
+    await tester.tap(find.byTooltip('Calendar'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Deleted ·'), findsOneWidget);
+    expect(
+      find.byKey(
+        ValueKey<String>(
+          'calendar-history-indicator-${today.year}-${today.month}-${today.day}',
+        ),
+      ),
+      findsOneWidget,
+    );
+    repository.dispose();
+  });
+}
+
+Future<void> _pumpRoutedApp(
+  WidgetTester tester,
+  FakeTaskRepository repository,
+) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        taskRepositoryProvider.overrideWithValue(repository),
+        taskListProvider.overrideWith((Ref ref) => repository.watchAll()),
+      ],
+      child: MaterialApp.router(routerConfig: createRouter()),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _tapDestination(WidgetTester tester, String label) async {
+  await tester.tap(
+    find.descendant(of: find.byType(NavigationBar), matching: find.text(label)),
+  );
+  await tester.pumpAndSettle();
 }
 
 Task _task({

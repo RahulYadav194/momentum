@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,7 @@ import '../tasks/data/task_providers.dart';
 import '../tasks/domain/task.dart';
 import '../tasks/domain/task_repository.dart';
 import '../tasks/presentation/quick_add_bar.dart';
+import '../tasks/presentation/task_deletion.dart';
 import '../tasks/presentation/task_form_sheet.dart';
 import '../tasks/presentation/task_tile.dart';
 import 'domain/today_task_classification.dart';
@@ -15,11 +18,65 @@ import 'domain/today_task_classification.dart';
 final Provider<DateTime Function()> todayClockProvider =
     Provider<DateTime Function()>((Ref ref) => DateTime.now);
 
-class TodayPage extends ConsumerWidget {
+class TodayPage extends ConsumerStatefulWidget {
   const TodayPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TodayPage> createState() => _TodayPageState();
+}
+
+class _TodayPageState extends ConsumerState<TodayPage>
+    with WidgetsBindingObserver {
+  Timer? _dateRefreshTimer;
+
+  DateTime get _now => ref.read(todayClockProvider)();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _scheduleDateRefresh();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshDate();
+    } else if (state == AppLifecycleState.paused) {
+      _dateRefreshTimer?.cancel();
+      _dateRefreshTimer = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _dateRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleDateRefresh() {
+    _dateRefreshTimer?.cancel();
+    final DateTime now = _now;
+    final DateTime nextDay = DateTime(now.year, now.month, now.day + 1);
+    final Duration untilNextDay = nextDay.difference(now);
+    _dateRefreshTimer = Timer(
+      untilNextDay.isNegative || untilNextDay == Duration.zero
+          ? const Duration(seconds: 1)
+          : untilNextDay,
+      _refreshDate,
+    );
+  }
+
+  void _refreshDate() {
+    if (!mounted) return;
+    _dateRefreshTimer?.cancel();
+    setState(() {});
+    _scheduleDateRefresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final AsyncValue<List<Task>> tasksAsync = ref.watch(taskListProvider);
 
     return tasksAsync.when(
@@ -48,7 +105,7 @@ class TodayPage extends ConsumerWidget {
         ),
       ),
       data: (List<Task> tasks) {
-        final DateTime now = ref.watch(todayClockProvider)();
+        final DateTime now = _now;
         final TodayTaskSections sections = classifyTasks(tasks, now);
         final int completedCount = sections.completedToday.length;
         final int relevantCount =
@@ -189,7 +246,11 @@ class TodayPage extends ConsumerWidget {
                         onToggle: (bool completed) =>
                             _toggleTask(context, ref, task, completed),
                         onTap: () => _editTask(context, ref, task),
-                        onDelete: () {},
+                        onDelete: () => confirmAndDeleteTask(
+                          context,
+                          repository: ref.read(taskRepositoryProvider),
+                          task: task,
+                        ),
                       ),
                       if (missed)
                         Padding(
